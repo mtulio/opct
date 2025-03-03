@@ -31,7 +31,3 @@ vi /tmp/openshift-kube-conformance.yaml
 ```
 ./opct run --plugin /tmp/openshift-kube-conformance.yaml --plugin /tmp/openshift-conformance-validated.yaml
 ```
-
-<!-- ## BYO Plugin from scratch
-
-> TBD -->
