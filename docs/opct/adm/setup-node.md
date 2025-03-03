@@ -1,6 +1,15 @@
 # `opct adm setup-node`
 
-`opct adm setup-node` manages the baseline results by selecting a dedicated compute node in the cluster. It avoids nodes hosting monitoring or Prometheus workloads to prevent oversizing and disruptions in the test environment.
+`opct adm setup-node` manages the setup of a dedicated compute node in the cluster.
+
+The `dedicated` node hosts the test environment, preventing test workloads from being scheduled on this node, allocating the required resources to handle the test environment, and preventing disruptions in the test services.
+
+The following configuration is added:
+
+- Create the node label `node-role.kubernetes.io/tests`
+- Set `NoSchedule` taints on the node
+
+When allowing the command to select the node automatically, it avoids nodes hosting monitoring workloads, including Prometheus, preventing oversizing and disruptions in the test environment.
 
 ## Options
 
