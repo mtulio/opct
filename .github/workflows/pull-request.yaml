@@ -1,0 +1,20 @@
+---
+name: Pull Request Check
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+    steps:
+      # https://github.com/marketplace/actions/require-labels
+      - uses: mheap/github-action-required-labels@v5
+        with:
+          message: "This PR is being prevented from merging because you are missing the kind label: kind/.*"
+          mode: exactly
+          count: 1
+          labels: "kind/.*"
+          use_regex: true
