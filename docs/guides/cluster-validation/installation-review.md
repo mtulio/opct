@@ -126,7 +126,7 @@ This section documents how to run dense disk tests using `fio`.
 
 This section provides a guide to check the etcd slow requests from the logs on the etcd pods to understand how the etcd is performing while running the e2e tests.
 
-The command `opct adm parse-etcd-logs` reads the logs, aggregates the requests and displays results in buckets of 100ms increments to 1s.
+The command `opct adm parse-etcd-logs` reads the logs, aggregates the requests and displays results in buckets of 100ms increments up to 1s.
 
 `opct adm parse-etcd-logs` is the utility to help troubleshoot the slow requests in the cluster, and help make decisions like changing the flavor of the block device used by the control plane, increasing IOPS, changing the flavor of the instances, etc.
 
