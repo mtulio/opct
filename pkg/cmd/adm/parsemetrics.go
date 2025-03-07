@@ -32,12 +32,12 @@ func init() {
 func parseMetricsRun(cmd *cobra.Command, args []string) {
 
 	if parseMetricsArgs.input == "" {
-		log.Error("missing argumet --input <metric archive file.tar.xz>")
+		log.Error("missing argument --input <metric archive file.tar.xz>")
 		os.Exit(1)
 	}
 
 	if parseMetricsArgs.output == "" {
-		log.Error("missing argumet --output <target directory to save parsed metrics>")
+		log.Error("missing argument --output <target directory to save parsed metrics>")
 		os.Exit(1)
 	}
 

@@ -29,14 +29,13 @@ func init() {
 }
 
 func cleanerRun(cmd *cobra.Command, args []string) {
-
 	if cleanerArgs.input == "" {
-		log.Error("missing argumet --input <archive.tar.gz>")
+		log.Error("missing argument --input <archive.tar.gz>")
 		os.Exit(1)
 	}
 
 	if cleanerArgs.output == "" {
-		log.Error("missing argumet --output <new-archive.tar.gz>")
+		log.Error("missing argument --output <new-archive.tar.gz>")
 		os.Exit(1)
 	}
 
