@@ -58,6 +58,7 @@ nav:
         - generate checks-docs: opct/adm/generate-checks-docs.md
         - parse-etcd-logs: opct/adm/parse-etcd-logs.md
         - parse-metrics: opct/adm/parse-metrics.md
+        - parse-junit: opct/adm/parse-junit.md
         - cleaner: opct/adm/cleaner.md
         - baseline: opct/adm/baseline.md
       - version: opct/version.md
