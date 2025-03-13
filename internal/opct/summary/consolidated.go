@@ -396,7 +396,8 @@ func (cs *ConsolidatedSummary) applyFilterFlakeForPlugin(pluginName string, filt
 func (cs *ConsolidatedSummary) applyFilterBaselineAPI() error {
 	// Load baseline results from API
 	if err := cs.loadBaselineFromAPI(); err != nil {
-		return fmt.Errorf("loading baseline results from API: %w", err)
+		// return fmt.Errorf("loading baseline results from API: %w", err)
+		log.Errorf("loading baseline results from API: %v", err)
 	}
 	for _, pluginName := range []string{
 		plugin.PluginNameOpenShiftUpgrade,
@@ -488,6 +489,11 @@ func (cs *ConsolidatedSummary) applyFilterBaselineAPIForPlugin(pluginName string
 	}
 
 	b := cs.BaselineAPI.GetBuffer()
+	if b == nil {
+		log.Warnf("skipping plugin %s due no baseline API data", ps.Name)
+		doneFilter()
+		return nil
+	}
 	if b != nil {
 		e2eFailuresBaseline, err = b.GetPriorityFailuresFromPlugin(pluginName)
 		if err != nil {

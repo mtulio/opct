@@ -654,10 +654,18 @@ func (re *ReportData) populatePluginConformance(rs *summary.ResultSummary, reRes
 
 	if _, ok := rs.GetSonobuoy().PluginsDefinition[pluginID]; ok {
 		def := rs.GetSonobuoy().PluginsDefinition[pluginID]
-		reResult.Plugins[pluginID].Definition = &plugin.PluginDefinition{
-			PluginImage:   def.Definition.Spec.Image,
-			SonobuoyImage: def.SonobuoyImage,
-			Name:          def.Definition.SonobuoyConfig.PluginName,
+		if def != nil {
+			image := ""
+			name := ""
+			if def.Definition != nil {
+				image = def.Definition.Spec.Image
+				name = def.Definition.SonobuoyConfig.PluginName
+			}
+			reResult.Plugins[pluginID].Definition = &plugin.PluginDefinition{
+				PluginImage:   image,
+				SonobuoyImage: def.SonobuoyImage,
+				Name:          name,
+			}
 		}
 	}
 
