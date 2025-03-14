@@ -218,7 +218,7 @@ jobs:
 
       - name: Preparing testdata
         env:
-          ARTIFACT: fake-cleaner.tar.gz
+          ARTIFACT: fake-cleaner-v2.tar.gz
           CUSTOM_BUILD_PATH: /tmp/build/opct-linux-amd64
           LOCAL_TEST_DATA: /tmp/artifact.tar.gz
         run: |
@@ -229,7 +229,7 @@ jobs:
           echo "> Setting exec permissions to OPCT:"
           chmod u+x ${CUSTOM_BUILD_PATH}
 
-      - name: "e2e parse metrics: opct adm cleaner"
+      - name: "e2e run: opct adm cleaner"
         env:
           CUSTOM_BUILD_PATH: /tmp/build/opct-linux-amd64
           LOCAL_TEST_DATA: /tmp/artifact.tar.gz
@@ -237,8 +237,36 @@ jobs:
           ${CUSTOM_BUILD_PATH} adm cleaner \
             --input ${LOCAL_TEST_DATA} \
             --output /tmp/redacted.tar.gz
+
           mkdir data
           tar xfz /tmp/redacted.tar.gz -C data
+
+      - name: "e2e run: opct adm cleaner: ensure JSONPatchRules"
+        env:
+          CUSTOM_BUILD_PATH: /tmp/build/opct-linux-amd64
+          LOCAL_TEST_DATA: /tmp/artifact.tar.gz
+        run: |
           # Prevent yaml-ci issues
           MCC=machineconfiguration.openshift.io_v1_controllerconfigs.json
-          jq .items[].spec.internalRegistryPullSecret data/resources/cluster/${MCC}
+          RES=$(jq .items[].spec.internalRegistryPullSecret data/resources/cluster/${MCC})
+          echo "RES=${RES}"
+          want="\"REDACTED\""
+          if [[ "${RES}" != "${want}" ]]; then
+            echo "Unexpected result"
+            echo "Got: ${RES}"
+            echo "Want: ${want}"
+          fi
+
+      - name: "e2e run: opct adm cleaner: ensure RemoveFilePatternRules"
+        env:
+          CUSTOM_BUILD_PATH: /tmp/build/opct-linux-amd64
+          LOCAL_TEST_DATA: /tmp/artifact.tar.gz
+        run: |
+          # Prevent yaml-ci issues
+          count=$(ls data/resources/ns/*/packages.operators.coreos.com_v1_packagemanifests.json | wc -l)
+          want=1
+          if [[ ${count} -ne ${want} ]]; then
+            echo "File cleaner left behind files: packages.operators.coreos.com_v1_packagemanifests.json"
+            echo "Got: ${count}"
+            echo "Want: ${want}"
+          fi
