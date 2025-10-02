@@ -151,15 +151,33 @@ type ReportClusterHealth struct {
 	PodHealthDetails []discovery.HealthInfoDetails `json:"podHealthDetails,omitempty"`
 }
 
+// ReportPlugin is the data structure to store the plugin results.
+// A plugin is a representation of a job in the workflow of the report.
+// It contains the results of the job, the suite of tests, the tests,
+// the filters, and the failed tests.
 type ReportPlugin struct {
-	ID            string                       `json:"id"`
-	Title         string                       `json:"title"`
-	Name          string                       `json:"name"`
-	Definition    *plugin.PluginDefinition     `json:"definition,omitempty"`
-	Stat          *ReportPluginStat            `json:"stat"`
-	ErrorCounters *archive.ErrorCounter        `json:"errorCounters,omitempty"`
-	Suite         *summary.OpenshiftTestsSuite `json:"suite"`
 
+	// ID is the unique identifier of the plugin/job in the workflow.
+	ID    string `json:"id"`
+	Title string `json:"title"`
+
+	// Name is the name of the plugin/job.
+	Name string `json:"name"`
+
+	// Definition is the metadata of the job.
+	// It stores the image reference of the job in OPCT and Sonobuoy engines.
+	Definition *plugin.PluginDefinition `json:"definition,omitempty"`
+
+	// Stat is the statistics of execution of the plugin/job.
+	Stat *ReportPluginStat `json:"stat"`
+
+	// ErrorCounters is the map of error counters, indexed by the well-known error patterns.
+	ErrorCounters *archive.ErrorCounter `json:"errorCounters,omitempty"`
+
+	// Suite is the suite of tests.
+	Suite *summary.OpenshiftTestsSuite `json:"suite"`
+
+	// Tests is the map of tests with their results executed in the job.
 	Tests map[string]*plugin.TestItem `json:"tests,omitempty"`
 
 	// Filters

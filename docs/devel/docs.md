@@ -8,7 +8,7 @@ OPCT documentation uses [mkdocs](https://www.mkdocs.org/) for static site genera
 
 ## Source Code
 
-The website is located in the `docs/` directory of the [opct repository](https://github.com/redhat-openshift-ecosystem/provider-certification-tool).
+The website is located in the `docs/` directory of the [opct repository](https://github.com/redhat-openshift-ecosystem/opct).
 
 ## Theme
 

@@ -51,23 +51,7 @@ pip3 install o-must-gather --user
 
 ### Download Baseline CI results <a name="setup-download-baseline"></a>
 
-The OPCT run periodically ([source code](https://github.com/openshift/release/blob/master/ci-operator/jobs/redhat-openshift-ecosystem/opct/redhat-openshift-ecosystem-provider-certification-tool-main-periodics.yaml)) in OpenShift CI using the latest stable release of OpenShift.
-These baseline results are stored long-term in an AWS S3 bucket (`s3://openshift-provider-certification/baseline-results`). An HTML listing can be found [here](https://openshift-provider-certification.s3.us-west-2.amazonaws.com/index.html).
-These baseline results should be used as a reference when reviewing a partner's conformance results.
-
-1. Identify cluster version in the partner's must gather:
-```bash
-$ omg get clusterversion
-NAME     VERSION  AVAILABLE  PROGRESSING  SINCE  STATUS
-version  4.11.13   True       False        11h    Cluster version is 4.11.13
-```
-2. Navigate to the [CI results](https://openshift-provider-certification.s3.us-west-2.amazonaws.com/index.html) and find the latest results (by date) for the matching OpenShift version
-3. Download the *latest* test results for the version (bottom of list). Copy the results archive link from the webpage in previous step. 
-```bash
-$ curl --output 4.11.13-20221125.tar.gz https://openshift-provider-certification.s3.us-west-2.amazonaws.com/baseline-results/4.11.13-20221125.tar.gz
-$ file 4.11.13-20221125.tar.gz 
-4.11.13-20221125.tar.gz: gzip compressed data, original size modulo 2^32 430269440
-```
+Baseline results archive are deprecated. The command `opct report` will automatically compare the results from the stream to the baseline and consolidated in the final report. No extra manual steps are required. Explore [the `opct report` manual](../opct/report.md) for more information.
 
 ### Download Partner Results <a name="setup-download-results"></a>
 
