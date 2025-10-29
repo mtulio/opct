@@ -1,0 +1,33 @@
+
+FROM ai-helpers:latest
+
+#RUN rm -rf /opt/ai-helpers/plugins/opct
+
+# Copy only the OPCT plugin to the existing ai-helpers directory
+COPY ai-helpers-fixture/plugins/opct /opt/ai-helpers/plugins/opct
+
+# Copy the ai-helpers-fixture directory to the existing ai-helpers directory
+COPY ai-helpers-fixture/.claude-plugin/marketplace.json /opt/ai-helpers/.claude-plugin/marketplace.json
+
+# Copy OPCT-specific configurations
+COPY opct-claude-settings.json /home/claude/.claude/settings.json
+COPY opct-known_marketplaces.json /home/claude/.claude/plugins/known_marketplaces.json
+
+# Ensure proper ownership
+USER root
+RUN chown -R claude:claude /opt/ai-helpers/plugins/opct \
+    && chown -R claude:claude /opt/ai-helpers/.claude-plugin/marketplace.json
+#RUN chown -R claude:claude /opt/ai-helpers/plugins/opct
+#RUN chown -R claude:claude /home/claude/.claude
+
+WORKDIR /workspace
+
+# Switch to claude user
+USER claude
+
+# Set Claude Code as the default command
+#ENTRYPOINT ["/bin/bash"]
+#CMD ["--help"]
+
+# Set Claude Code as the default command
+ENTRYPOINT ["/bin/bash"]

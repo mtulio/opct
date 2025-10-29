@@ -1,0 +1,103 @@
+{
+  "theme": "dark",
+  "consoleLog": {
+    "enabled": true,
+    "level": "info"
+  },
+  "extraKnownMarketplaces": {
+    "ai-helpers": {
+      "source": {
+        "source": "directory",
+        "path": "/opt/ai-helpers"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "opct@ai-helpers": true,
+    "must-gather@ai-helpers": true,
+    "session@ai-helpers": true,
+    "openshift@ai-helpers": true,
+    "yaml@ai-helpers": true,
+    "ci@ai-helpers": true
+  },
+  "workspace": {
+    "name": "OPCT Review Workspace",
+    "welcomeMessage": "Welcome to OPCT Review workspace! This environment is pre-configured for OpenShift Platform Certification Testing (OPCT) analysis and review tasks.",
+    "autoLoadPlugins": true,
+    "allowedPaths": [
+      "/workspace",
+      "/opt/ai-helpers"
+    ],
+    "readOnlyPaths": [
+      "/opt/ai-helpers"
+    ],
+    "writeAllowedPaths": [
+      "/workspace"
+    ]
+  },
+  "fileAccess": {
+    "restrictedFiles": [
+      "**/.env",
+      "**/.env.*",
+      "**/secrets/**",
+      "**/credentials/**",
+      "**/*.key",
+      "**/*.pem",
+      "**/*.p12",
+      "**/*.pfx"
+    ],
+    "allowedReadPaths": [
+      "/workspace",
+      "/opt/ai-helpers"
+    ],
+    "deniedReadPaths": [
+      "/workspace/**/.env",
+      "/workspace/**/.env.*",
+      "/workspace/**/secrets",
+      "/workspace/**/credentials"
+    ]
+  },
+  "commandPermissions": {
+    "allowedCommands": [
+      "mkdir",
+      "tar",
+      "cp",
+      "mv",
+      "rm",
+      "ls",
+      "find",
+      "grep",
+      "cat",
+      "echo",
+      "touch",
+      "chmod",
+      "chown"
+    ],
+    "restrictedCommands": [
+      "sudo",
+      "su",
+      "passwd",
+      "useradd",
+      "userdel",
+      "usermod"
+    ],
+    "allowedCommandPaths": [
+      "/workspace",
+      "/opt/ai-helpers"
+    ],
+    "readOnlyCommandPaths": [
+      "/opt/ai-helpers"
+    ],
+    "writeCommandPaths": [
+      "/workspace"
+    ],
+    "workingDirectory": "/workspace"
+  },
+  "ui": {
+    "showWelcome": false,
+    "skipInitialSetup": true,
+    "defaultCommand": "opct --help"
+  },
+  "firstRun": false,
+  "setupComplete": true
+}
