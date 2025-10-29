@@ -4,14 +4,15 @@ FROM ai-helpers:latest
 #RUN rm -rf /opt/ai-helpers/plugins/opct
 
 # Copy only the OPCT plugin to the existing ai-helpers directory
-COPY ai-helpers-fixture/plugins/opct /opt/ai-helpers/plugins/opct
+COPY plugin-opct /opt/ai-helpers/plugins/opct
 
-# Copy the ai-helpers-fixture directory to the existing ai-helpers directory
+# Copy the custom marketplace configuration to override existing from
+# ai-helpers, limiting the amount of available plugins for security and
+# optimization.
 COPY ai-helpers-fixture/.claude-plugin/marketplace.json /opt/ai-helpers/.claude-plugin/marketplace.json
 
 # Copy OPCT-specific configurations
-COPY opct-claude-settings.json /home/claude/.claude/settings.json
-COPY opct-known_marketplaces.json /home/claude/.claude/plugins/known_marketplaces.json
+COPY ai-helpers-fixture/claude-settings.json /home/claude/.claude/settings.json
 
 # Ensure proper ownership
 USER root
