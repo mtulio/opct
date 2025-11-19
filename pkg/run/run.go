@@ -11,7 +11,6 @@ import (
 	coclient "github.com/openshift/client-go/config/clientset/versioned"
 	irclient "github.com/openshift/client-go/imageregistry/clientset/versioned"
 	mcfgclientset "github.com/openshift/client-go/machineconfiguration/clientset/versioned"
-	"github.com/pkg/errors"
 	"github.com/redhat-openshift-ecosystem/opct/pkg/version"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -216,7 +215,7 @@ func (r *RunOptions) PreRunCheck(kclient kubernetes.Interface) error {
 		}
 		log.Errorf("Preflights checks failed: operators are not in ready state, check the status with 'oc get clusteroperator': %v", errorMessages)
 		if !r.devSkipChecks {
-			return errors.New("All Cluster Operators must be available, not progressing, and not degraded before validation can run.")
+			return fmt.Errorf("All Cluster Operators must be available, not progressing, and not degraded before validation can run.")
 		}
 		log.Warnf("DEVEL MODE, THIS IS NOT SUPPORTED: Skipping Cluster Operator checks: %v", errs)
 	}
@@ -237,7 +236,7 @@ func (r *RunOptions) PreRunCheck(kclient kubernetes.Interface) error {
 	}
 	if !managed {
 		if !r.devSkipChecks {
-			return errors.New("OpenShift Image Registry must deployed before validation can run")
+			return fmt.Errorf("OpenShift Image Registry must deployed before validation can run")
 		}
 		log.Warn("DEVEL MODE, THIS IS NOT SUPPORTED: Skipping unmanaged image registry check")
 	}
@@ -248,7 +247,7 @@ func (r *RunOptions) PreRunCheck(kclient kubernetes.Interface) error {
 			LabelSelector: pkg.DedicatedNodeRoleLabelSelector,
 		})
 		if err != nil {
-			return errors.Wrap(err, "error getting the Node list")
+			return fmt.Errorf("error getting the Node list: %w", err)
 		}
 		if len(nodes.Items) == 0 {
 			return fmt.Errorf(`missing dedicated node. Set the label %q to a node and try again
@@ -281,7 +280,7 @@ Check the documentation[1] or run 'opct adm e2e-dedicated taint-node' to set the
 	}
 
 	if p.Name != "" {
-		return errors.New(fmt.Sprintf("%s namespace already exists. You must run 'destroy' to clean the environment and try again.", pkg.CertificationNamespace))
+		return fmt.Errorf("%s namespace already exists. You must run 'destroy' to clean the environment and try again.", pkg.CertificationNamespace)
 	}
 
 	// Check if MachineConfigPool exists when upgrade mode is set.:
@@ -366,7 +365,7 @@ func (r *RunOptions) PreRunSetup(kclient kubernetes.Interface) error {
 			Effect:   v1.TaintEffectNoSchedule,
 		}})
 		if err != nil {
-			return errors.Wrap(err, "error creating namespace Tolerations")
+			return fmt.Errorf("error creating namespace Tolerations: %w", err)
 		}
 
 		namespace.Annotations = map[string]string{
@@ -377,7 +376,7 @@ func (r *RunOptions) PreRunSetup(kclient kubernetes.Interface) error {
 
 	_, err := kclient.CoreV1().Namespaces().Create(context.TODO(), namespace, metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "error creating Namespace")
+		return fmt.Errorf("error creating Namespace: %w", err)
 	}
 
 	// Create Sonobuoy ServiceAccount
@@ -397,7 +396,7 @@ func (r *RunOptions) PreRunSetup(kclient kubernetes.Interface) error {
 
 	_, err = kclient.CoreV1().ServiceAccounts(pkg.CertificationNamespace).Create(context.TODO(), sa, metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "error creating ServiceAccount")
+		return fmt.Errorf("error creating ServiceAccount: %w", err)
 	}
 
 	log.Info("Ensuring the tool will run in the privileged environment...")
@@ -432,7 +431,7 @@ func (r *RunOptions) PreRunSetup(kclient kubernetes.Interface) error {
 
 	_, err = rbacClient.ClusterRoles().Update(context.TODO(), cr, metav1.UpdateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "error creating privileged ClusterRole")
+		return fmt.Errorf("error creating privileged ClusterRole: %w", err)
 	}
 	log.Infof("Created %s ClusterRole", pkg.PrivilegedClusterRole)
 
@@ -463,7 +462,7 @@ func (r *RunOptions) PreRunSetup(kclient kubernetes.Interface) error {
 
 	_, err = rbacClient.ClusterRoleBindings().Update(context.TODO(), crb, metav1.UpdateOptions{})
 	if err != nil {
-		return errors.Wrap(err, "error creating privileged ClusterRoleBinding")
+		return fmt.Errorf("error creating privileged ClusterRoleBinding: %w", err)
 	}
 	log.Infof("Created %s ClusterRoleBinding", pkg.PrivilegedClusterRoleBinding)
 
@@ -522,7 +521,7 @@ func (r *RunOptions) PreRunSetup(kclient kubernetes.Interface) error {
 
 		_, err := kclient.AppsV1().Deployments(pkg.CertificationNamespace).Create(context.TODO(), deployment, metav1.CreateOptions{})
 		if err != nil {
-			return errors.Wrap(err, "error creating e2e-dedicated-controller deployment")
+			return fmt.Errorf("error creating e2e-dedicated-controller deployment: %w", err)
 		}
 	}
 
@@ -578,7 +577,7 @@ func (r *RunOptions) Run(kclient kubernetes.Interface, sclient sonobuoyclient.In
 			log.Error(err)
 		}
 		if !r.devSkipChecks {
-			return errors.New("preflight checks failed")
+			return fmt.Errorf("preflight checks failed")
 		}
 		log.Warn("DEVEL MODE, THIS IS NOT SUPPORTED: Skipping preflight checks")
 	}
@@ -639,7 +638,7 @@ func (r *RunOptions) Run(kclient kubernetes.Interface, sclient sonobuoyclient.In
 	}
 
 	if len(manifests) == 0 {
-		return errors.New("No validation plugins to run")
+		return fmt.Errorf("No validation plugins to run")
 	}
 
 	// Fill out the aggregator and worker configs
@@ -688,15 +687,15 @@ func checkClusterOperators(configClient coclient.Interface) []error {
 			switch cond.Type {
 			case configv1.OperatorAvailable:
 				if cond.Status == configv1.ConditionFalse {
-					result = append(result, errors.Errorf("%s is unavailable", co.Name))
+					result = append(result, fmt.Errorf("%s is unavailable", co.Name))
 				}
 			case configv1.OperatorProgressing:
 				if cond.Status == configv1.ConditionTrue {
-					result = append(result, errors.Errorf("%s is still progressing", co.Name))
+					result = append(result, fmt.Errorf("%s is still progressing", co.Name))
 				}
 			case configv1.OperatorDegraded:
 				if cond.Status == configv1.ConditionTrue {
-					result = append(result, errors.Errorf("%s is in degraded state", co.Name))
+					result = append(result, fmt.Errorf("%s is in degraded state", co.Name))
 				}
 			}
 		}

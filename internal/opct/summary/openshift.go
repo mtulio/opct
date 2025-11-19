@@ -8,7 +8,6 @@ import (
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/pkg/errors"
 	"github.com/redhat-openshift-ecosystem/opct/internal/opct/plugin"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -87,7 +86,7 @@ func NewOpenShiftSummary() *OpenShiftSummary {
 
 func (os *OpenShiftSummary) SetInfrastructure(cr *configv1.InfrastructureList) error {
 	if len(cr.Items) == 0 {
-		return errors.New("Unable to find result Items to set Infrastructures")
+		return fmt.Errorf("Unable to find result Items to set Infrastructures")
 	}
 	os.Infrastructure = &cr.Items[0]
 	return nil
@@ -116,7 +115,7 @@ func (os *OpenShiftSummary) GetClusterNetwork() (*SummaryOpenShiftClusterNetwork
 
 func (os *OpenShiftSummary) SetClusterVersion(cr *configv1.ClusterVersionList) error {
 	if len(cr.Items) == 0 {
-		return errors.New("Unable to find result Items to set Infrastructures")
+		return fmt.Errorf("Unable to find result Items to set Infrastructures")
 	}
 	os.ClusterVersion = &cr.Items[0]
 	return nil
@@ -198,7 +197,7 @@ func (os *OpenShiftSummary) GetClusterVersionXY() (string, error) {
 
 func (os *OpenShiftSummary) SetClusterOperators(cr *configv1.ClusterOperatorList) error {
 	if len(cr.Items) == 0 {
-		return errors.New("Unable to find result Items to set ClusterOperators")
+		return fmt.Errorf("Unable to find result Items to set ClusterOperators")
 	}
 	os.ClusterOperators = cr
 	return nil
@@ -229,7 +228,7 @@ func (os *OpenShiftSummary) GetClusterOperator() (*SummaryClusterOperatorOutput,
 
 func (os *OpenShiftSummary) SetClusterNetwork(cn *configv1.NetworkList) error {
 	if len(cn.Items) == 0 {
-		return errors.New("Unable to find result Items to set ClusterNetwork")
+		return fmt.Errorf("Unable to find result Items to set ClusterNetwork")
 	}
 	os.ClusterNetwork = &cn.Items[0]
 	return nil
@@ -241,7 +240,7 @@ func (os *OpenShiftSummary) GetNodes() []*Node {
 
 func (os *OpenShiftSummary) SetNodes(nodes *v1.NodeList) error {
 	if len(nodes.Items) == 0 {
-		return errors.New("Unable to find result Items to set Nodes")
+		return fmt.Errorf("Unable to find result Items to set Nodes")
 	}
 	sizeToHuman := func(size string) string {
 		sizeNumber := strings.Split(size, "Ki")[0]

@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
+	
 	log "github.com/sirupsen/logrus"
 )
 
@@ -53,21 +53,21 @@ func (d *TestDocumentation) Load() error {
 	app := "Test Documentation"
 	req, err := http.NewRequest(http.MethodGet, *d.SourceBaseURL, nil)
 	if err != nil {
-		return errors.Wrapf(err, "failed to create request to get %s", app)
+		return fmt.Errorf("failed to create request to get %s: %w", app, err)
 	}
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return errors.Wrapf(err, "failed to make request to %s", app)
+		return fmt.Errorf("failed to make request to %s: %w", app, err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return errors.New(fmt.Sprintf("unexpected HTTP status code to %s", app))
+		return fmt.Errorf("unexpected HTTP status code to %s", app)
 	}
 
 	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
-		return errors.Wrapf(err, "failed to read response body for %s", app)
+		return fmt.Errorf("failed to read response body for %s: %w", app, err)
 	}
 	str := string(resBody)
 	d.Raw = &str

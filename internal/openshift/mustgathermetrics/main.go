@@ -4,11 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
 
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/ulikunitz/xz"
 )
@@ -188,7 +188,7 @@ func (mg *MustGatherMetrics) extract(tarball *tar.Reader) error {
 
 		// return on error
 		case err != nil:
-			return errors.Wrapf(err, "error reading tarball")
+			return fmt.Errorf("error reading tarball: %w", err)
 
 		// skip it when the headr isn't set (not sure how this happens)
 		case header == nil:

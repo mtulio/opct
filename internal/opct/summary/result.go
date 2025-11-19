@@ -9,7 +9,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/redhat-openshift-ecosystem/opct/internal/opct/archive"
 	"github.com/redhat-openshift-ecosystem/opct/internal/opct/plugin"
 	"github.com/redhat-openshift-ecosystem/opct/internal/openshift/mustgather"
@@ -82,13 +81,13 @@ func (rs *ResultSummary) Populate() error {
 	cleanup, err := rs.openReader()
 	defer cleanup()
 	if err != nil {
-		return errors.Wrapf(err, "unable to open reader for file '%s'", rs.Archive)
+		return fmt.Errorf("unable to open reader for file '%s': %w", rs.Archive, err)
 	}
 
 	// Report on all plugins or the specified one.
 	plugins, err := rs.getPluginList()
 	if err != nil {
-		return errors.Wrapf(err, "unable to determine plugins to report on")
+		return fmt.Errorf("unable to determine plugins to report on: %w", err)
 	}
 	if len(plugins) == 0 {
 		return fmt.Errorf("no plugins specified by either the --plugin flag or tarball metadata")
@@ -161,7 +160,7 @@ func (rs *ResultSummary) getPluginList() ([]string, error) {
 		return results.ExtractFileIntoStruct(rs.reader.RunInfoFile(), path, info, &runInfo)
 	})
 
-	return runInfo.LoadedPlugins, errors.Wrap(err, "finding plugin list")
+	return runInfo.LoadedPlugins, fmt.Errorf("finding plugin list: %w", err)
 }
 
 // openReader returns a *results.Reader along with a cleanup function to close the
@@ -181,13 +180,13 @@ func (rs *ResultSummary) openReader() (func(), error) {
 	f, err := os.Open(filepath)
 	if err != nil {
 		rs.reader = nil
-		return func() {}, errors.Wrapf(err, "could not open sonobuoy archive: %v", filepath)
+		return func() {}, fmt.Errorf("could not open sonobuoy archive: %v: %w", filepath, err)
 	}
 
 	gzr, err := gzip.NewReader(f)
 	if err != nil {
 		rs.reader = nil
-		return func() { f.Close() }, errors.Wrap(err, "could not make a gzip reader")
+		return func() { f.Close() }, fmt.Errorf("could not make a gzip reader: %w", err)
 	}
 
 	rs.reader = results.NewReaderWithVersion(gzr, results.VersionTen)
@@ -356,77 +355,77 @@ func (rs *ResultSummary) extractAndLoadData() error {
 	err := rs.reader.WalkFiles(func(path string, info os.FileInfo, e error) error {
 		// Extract and marshal the files into the structures
 		if err := results.ExtractFileIntoStruct(results.ClusterHealthFilePath(), path, info, &sbCluster); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceInfrastructures, path, info, &ocpInfra); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceClusterVersions, path, info, &ocpCV); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceClusterOperators, path, info, &ocpCO); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceClusterNetwork, path, info, &ocpCN); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathPluginDefinition10, path, info, &pluginDef10); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathPluginDefinition20, path, info, &pluginDef20); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathMetaConfig, path, info, &metaConfig); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceNSOpctConfigMap, path, info, &opctConfigMapList); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceNodes, path, info, &nodes); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceNsKubeConfigMap, path, info, &kubeSystemConfigMapList); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		if err := results.ExtractFileIntoStruct(pathResourceNsOcpConfigMap, path, info, &openshiftConfigMapList); err != nil {
-			return errors.Wrap(err, fmt.Sprintf("extracting file '%s': %v", path, err))
+			return fmt.Errorf("extracting file '%s': %w", path, err)
 		}
 		// Extract raw files
 		if warn := results.ExtractBytes(pathPluginArtifactTestsK8S, path, info, &testsSuiteK8S); warn != nil {
 			log.Warnf("Unable to load file %s: %v\n", pathPluginArtifactTestsK8S, warn)
-			return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+			return fmt.Errorf("extracting file '%s': %w", path, warn)
 		}
 		if warn := results.ExtractBytes(pathPluginArtifactTestsOCP, path, info, &testsSuiteOCP); warn != nil {
 			log.Warnf("Unable to load file %s: %v\n", pathPluginArtifactTestsOCP, warn)
-			return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+			return fmt.Errorf("extracting file '%s': %w", path, warn)
 		}
 		if warn := results.ExtractBytes(pathPluginArtifactTestsOCP2, path, info, &testsSuiteOCP); warn != nil {
 			log.Warnf("Unable to load file %s: %v\n", pathPluginArtifactTestsOCP2, warn)
-			return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+			return fmt.Errorf("extracting file '%s': %w", path, warn)
 		}
 		if warn := results.ExtractBytes(pathMetaRun, path, info, &metaRunLogs); warn != nil {
 			log.Warnf("Unable to load file %s: %v\n", pathMetaRun, warn)
-			return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+			return fmt.Errorf("extracting file '%s': %w", path, warn)
 		}
 		if warn := results.ExtractBytes(pathMustGather, path, info, &mustGather); warn != nil {
 			log.Warnf("Unable to load file %s: %v\n", pathMustGather, warn)
-			return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+			return fmt.Errorf("extracting file '%s': %w", path, warn)
 		}
 		if saveToFlagEnabled {
 			if warn := results.ExtractBytes(pathCAMIG, path, info, &CAMGI); warn != nil {
 				log.Warnf("Unable to load file %s: %v\n", pathCAMIG, warn)
-				return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+				return fmt.Errorf("extracting file '%s': %w", path, warn)
 			}
 			if warn := results.ExtractBytes(pathMetrics, path, info, &MetricsData); warn != nil {
 				log.Warnf("Unable to load file %s: %v\n", pathCAMIG, warn)
-				return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+				return fmt.Errorf("extracting file '%s': %w", path, warn)
 			}
 			// extract podLogs, container plugin
 			if rePluginLogs.MatchString(path) {
 				var raw bytes.Buffer
 				if warn := results.ExtractBytes(path, path, info, &raw); warn != nil {
 					log.Warnf("Unable to load plugin log %s: %v\n", path, warn)
-					return errors.Wrap(warn, fmt.Sprintf("extracting file '%s': %v", path, warn))
+					return fmt.Errorf("extracting file '%s': %w", path, warn)
 				}
 				prefix := strings.Split(path, "-job-")
 				if len(prefix) != 2 {

@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	sonobuoyclient "github.com/vmware-tanzu/sonobuoy/pkg/client"
@@ -77,7 +76,7 @@ func retrieveResultsRetry(sclient sonobuoyclient.Interface, destinationDirectory
 		return nil // Retrieved results without a problem
 	}
 
-	return errors.New("Retrieval retry limit reached")
+	return fmt.Errorf("Retrieval retry limit reached")
 }
 
 func retrieveResults(sclient sonobuoyclient.Interface, destinationDirectory string) error {
@@ -87,13 +86,13 @@ func retrieveResults(sclient sonobuoyclient.Interface, destinationDirectory stri
 		Path:      config2.AggregatorResultsPath,
 	})
 	if err != nil {
-		return errors.Wrap(err, "error retrieving results from sonobuoy")
+		return fmt.Errorf("error retrieving results from sonobuoy: %w", err)
 	}
 
 	// Download results into target directory
 	results, err := writeResultsToDirectory(destinationDirectory, reader, ec)
 	if err != nil {
-		return errors.Wrap(err, "error retrieving results from sonobyuoy")
+		return fmt.Errorf("error retrieving results from sonobyuoy: %w", err)
 	}
 
 	// Log the new files to stdout

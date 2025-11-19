@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"text/tabwriter"
@@ -63,7 +62,7 @@ func NewCmdReport() *cobra.Command {
 			data.archive = args[0]
 			checkFlags(&data)
 			if err := processResult(&data); err != nil {
-				errlog.LogError(errors.Wrapf(err, "could not process archive: %v", args[0]))
+				errlog.LogError(fmt.Errorf("could not process archive: %v: %w", args[0], err))
 				os.Exit(1)
 			}
 		},
@@ -340,7 +339,7 @@ func showReportAggregatedSummary(re *report.ReportData) error {
 
 	showPluginSummary := func(w *tabwriter.Writer, pluginName string) {
 		if _, ok := re.Provider.Plugins[pluginName]; !ok {
-			errlog.LogError(errors.New(fmt.Sprintf("Unable to load plugin %s", pluginName)))
+			errlog.LogError(fmt.Errorf("Unable to load plugin %s", pluginName))
 		}
 		plK8S := re.Provider.Plugins[pluginName]
 		name := fmt.Sprintf(" %s", plK8S.Name)
@@ -614,7 +613,7 @@ func showErrorDetails(re *report.ReportData, verbose bool) error {
 // showErrorDetailPlugin Show failed e2e tests by filter, when verbose each filter will be shown.
 func showErrorDetailPlugin(p *report.ReportPlugin, verbose bool) {
 	if p == nil {
-		errlog.LogError(errors.New("unable to get plugin"))
+		errlog.LogError(fmt.Errorf("unable to get plugin"))
 		return
 	}
 	fmt.Printf("==> %s - test failures:\n", p.Name)
@@ -640,7 +639,7 @@ func showErrorDetailPlugin(p *report.ReportPlugin, verbose bool) {
 		for _, failure := range failures {
 			test, ok := p.Tests[failure.Name]
 			if !ok {
-				errlog.LogError(errors.New(fmt.Sprintf("unable to get test %s", failure.Name)))
+				errlog.LogError(fmt.Errorf("unable to get test %s", failure.Name))
 				continue
 			}
 			errCount := 0
