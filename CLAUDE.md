@@ -54,11 +54,8 @@ OPCT is organized into the following key components:
 
 1. **`go.mod`**
    - Update `go` directive (e.g., `go 1.25.0`)
-   - **Remove or comment out `toolchain` directive** if present
-   - **Important**: The `toolchain` directive can cause CI failures with golangci-lint
-     if the toolchain version is higher than the Go version used to build golangci-lint.
-     Example: `toolchain go1.25.4` fails if golangci-lint was built with Go 1.24.
-     Use only the `go` directive for maximum compatibility.
+   - **Do not use `toolchain` directive** - it can cause CI compatibility issues
+   - Use only the `go` directive for maximum compatibility with CI tools
 
 2. **`.github/workflows/*.yaml` (ALL workflow files)**
    - Search for ALL files with `GO_VERSION`: `grep -rn "GO_VERSION" .github/workflows/`
@@ -91,7 +88,7 @@ go version  # e.g., go version go1.25.4 linux/amd64
 
 # 2. Update go.mod
 # - Set go directive to major.minor.patch (e.g., 1.25.0)
-# - Remove toolchain directive if present (to avoid golangci-lint compatibility issues)
+# - Do not add toolchain directive (for CI compatibility)
 
 # 3. Update ALL .github/workflows/*.yaml files
 # - Search for all GO_VERSION references: grep -rn "GO_VERSION" .github/workflows/
@@ -149,10 +146,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - **YAML linting errors**: These are typically pre-existing issues in `.github/workflows/*.yaml` files and unrelated to Go version changes
 - **Dependency conflicts**: Run `go mod tidy` to resolve; if issues persist, check for incompatible dependencies
-- **golangci-lint version mismatch**: If CI fails with "the Go language version used to build golangci-lint is lower than the targeted Go version":
-  - Remove the `toolchain` directive from `go.mod`
-  - The `toolchain` directive specifies a patch version that may be higher than the Go version used to build golangci-lint
-  - Use only the `go` directive for maximum compatibility with CI tools
+- **golangci-lint compatibility**: The project uses golangci-lint v2.6.2+ which supports Go 1.25+
+  - If upgrading to Go 1.26+, ensure golangci-lint version supports it
+  - Check golangci-lint releases: https://github.com/golangci/golangci-lint/releases
+  - Update `GOLANGCI_LINT_VERSION` in `.github/workflows/pre_linters.yaml` if needed
 
 ---
 

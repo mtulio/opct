@@ -9,6 +9,6 @@ else
     --env IS_CONTAINER=TRUE \
     --volume "${PWD}:/go/src/github.com/redhat-openshift-ecosystem/opct:z" \
     --workdir /go/src/github.com/redhat-openshift-ecosystem/opct \
-    docker.io/golang:1.24 \
+    docker.io/golang:1.25 \
     ./hack/go-staticcheck.sh "${@}"
 fi
