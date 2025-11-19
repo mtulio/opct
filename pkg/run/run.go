@@ -280,7 +280,7 @@ Check the documentation[1] or run 'opct adm e2e-dedicated taint-node' to set the
 	}
 
 	if p.Name != "" {
-		return fmt.Errorf("%s namespace already exists. You must run 'destroy' to clean the environment and try again.", pkg.CertificationNamespace)
+		return fmt.Errorf("%s namespace already exists. You must run 'destroy' to clean the environment and try again", pkg.CertificationNamespace)
 	}
 
 	// Check if MachineConfigPool exists when upgrade mode is set.:
@@ -638,7 +638,7 @@ func (r *RunOptions) Run(kclient kubernetes.Interface, sclient sonobuoyclient.In
 	}
 
 	if len(manifests) == 0 {
-		return fmt.Errorf("No validation plugins to run")
+		return fmt.Errorf("no validation plugins to run")
 	}
 
 	// Fill out the aggregator and worker configs

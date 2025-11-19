@@ -273,7 +273,7 @@ func (cs *ConsolidatedSummary) applyFilterBaselineForPlugin(pluginName string, f
 		ps = cs.GetProvider().GetOpenShift().GetResultConformanceReplay()
 
 	default:
-		return fmt.Errorf("Suite not found to apply filter: Flaky")
+		return fmt.Errorf("suite not found to apply filter: Flaky")
 	}
 
 	filterFailures, filterFailuresExcluded := ps.GetFailuresByFilterID(filterID)
@@ -337,7 +337,7 @@ func (cs *ConsolidatedSummary) applyFilterFlakeForPlugin(pluginName string, filt
 		ps = cs.GetProvider().GetOpenShift().GetResultConformanceReplay()
 
 	default:
-		return fmt.Errorf("Suite not found to apply filter: Flaky")
+		return fmt.Errorf("suite not found to apply filter: Flaky")
 	}
 
 	// TODO: define if we will check for flakes for all failures or only filtered
