@@ -71,6 +71,14 @@ OPCT is organized into the following key components:
    - Check base image for latest stable: `FROM quay.io/fedora/fedora-minimal:XX`
    - To find latest Fedora stable: Check [Fedora releases](https://fedoraproject.org/wiki/Releases)
 
+4. **`hack/*.sh` scripts (containerized Go tools)**
+   - Search for ALL golang image references: `grep -rn "golang:1\." hack/`
+   - Update in:
+     - `hack/go-imports.sh` (line ~14): `docker.io/golang:1.25`
+     - `hack/go-staticcheck.sh` (line ~12): `docker.io/golang:1.25`
+   - Format: `docker.io/golang:1.25` (major.minor only)
+   - **Important**: Always search for ALL occurrences, as new scripts may be added
+
 #### Procedure
 
 ```bash
@@ -90,16 +98,20 @@ go version  # e.g., go version go1.25.4 linux/amd64
 # - Update golang builder image to match major.minor
 # - Optionally update fedora-minimal base image
 
-# 5. Resolve dependencies
+# 5. Update hack/*.sh scripts
+# - Search for all golang image references: grep -rn "golang:1\." hack/
+# - Update docker.io/golang images in hack/go-imports.sh and hack/go-staticcheck.sh
+
+# 6. Resolve dependencies
 go mod tidy
 
-# 6. Validate changes
+# 7. Validate changes
 make test
 make vet
 make test-lint  # May show pre-existing YAML lint issues - that's OK
 
-# 7. Commit changes
-git add go.mod go.sum .github/workflows/*.yaml hack/Containerfile
+# 8. Commit changes
+git add go.mod go.sum .github/workflows/*.yaml hack/Containerfile hack/*.sh
 git commit -m "chore: bump Go version to X.Y.Z
 
 Updated Go version from X.Y.Z to A.B.C with toolchain A.B.D
