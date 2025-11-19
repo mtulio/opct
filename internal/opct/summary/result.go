@@ -159,8 +159,11 @@ func (rs *ResultSummary) getPluginList() ([]string, error) {
 	err := rs.reader.WalkFiles(func(path string, info os.FileInfo, err error) error {
 		return results.ExtractFileIntoStruct(rs.reader.RunInfoFile(), path, info, &runInfo)
 	})
+	if err != nil {
+		return nil, fmt.Errorf("finding plugin list: %w", err)
+	}
 
-	return runInfo.LoadedPlugins, fmt.Errorf("finding plugin list: %w", err)
+	return runInfo.LoadedPlugins, nil
 }
 
 // openReader returns a *results.Reader along with a cleanup function to close the
