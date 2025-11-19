@@ -56,10 +56,15 @@ OPCT is organized into the following key components:
    - Update `go` directive (e.g., `go 1.25.0`)
    - Update `toolchain` directive to match environment (e.g., `toolchain go1.25.4`)
 
-2. **`.github/workflows/go.yaml`**
-   - Update `GO_VERSION` environment variable
-   - Location: Line ~16
+2. **`.github/workflows/*.yaml` (ALL workflow files)**
+   - Search for ALL files with `GO_VERSION`: `grep -rn "GO_VERSION" .github/workflows/`
+   - Update `GO_VERSION` environment variable in:
+     - `go.yaml` (line ~16)
+     - `pre_linters.yaml` (line ~19)
+     - `pre_reviewer.yaml` (line ~15)
+     - `e2e.yaml` (line ~13)
    - Format: `GO_VERSION: 1.25` (major.minor only)
+   - **Important**: Always search for ALL occurrences, as new workflows may be added
 
 3. **`hack/Containerfile`**
    - Update builder image: `FROM docker.io/golang:1.25-alpine AS builder`
@@ -76,7 +81,9 @@ go version  # e.g., go version go1.25.4 linux/amd64
 # - Set go directive to major.minor.patch (e.g., 1.25.0)
 # - Set toolchain to exact version from environment (e.g., go1.25.4)
 
-# 3. Update .github/workflows/go.yaml
+# 3. Update ALL .github/workflows/*.yaml files
+# - Search for all GO_VERSION references: grep -rn "GO_VERSION" .github/workflows/
+# - Update in go.yaml, pre_linters.yaml, pre_reviewer.yaml, e2e.yaml
 # - Set GO_VERSION to major.minor only (e.g., 1.25)
 
 # 4. Update hack/Containerfile
@@ -92,7 +99,7 @@ make vet
 make test-lint  # May show pre-existing YAML lint issues - that's OK
 
 # 7. Commit changes
-git add go.mod go.sum .github/workflows/go.yaml hack/Containerfile
+git add go.mod go.sum .github/workflows/*.yaml hack/Containerfile
 git commit -m "chore: bump Go version to X.Y.Z
 
 Updated Go version from X.Y.Z to A.B.C with toolchain A.B.D
@@ -101,8 +108,8 @@ to use the latest Go version available in the build environment.
 Changes:
 - Updated go directive to A.B.C
 - Updated toolchain to goA.B.D
-- Updated CI workflow GO_VERSION to A.B
-- Updated hack/Containerfile golang image to A.B
+- Updated CI workflows GO_VERSION to A.B (4 workflow files)
+- Updated hack/Containerfile golang image to A.B-alpine
 - Resolved dependencies with go mod tidy
 
 Validation:
