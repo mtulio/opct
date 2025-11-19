@@ -209,14 +209,14 @@ Check the unhealthy pods:
 ~~~sh
 $ ./opct report archive.tar.gz
 (...)
- Health summary:              [A=True/P=True/D=True]    
+ Health summary:              [A=True/P=True/D=True]
  - Cluster Operators            : [33/0/0]
  - Node health              : 6/6  (100.00%)
  - Pods health              : 246/247  (99.00%)
-                        
+
  Failed pods:
   Namespace/PodName                     Healthy Ready   Reason      Message
-  openshift-kube-controller-manager/installer-6-control-plane-1 false   False   PodFailed   
+  openshift-kube-controller-manager/installer-6-control-plane-1 false   False   PodFailed
 (...)
 ~~~
 Explore the pods:
@@ -284,7 +284,7 @@ $ /opct report archive.tar.gz
 			prefix := "Check Failed - " + CheckID004
 			res := CheckResult{
 				Name:   CheckResultNameFail,
-				Target: "Pass>=98.5%(Fail>1.5%)",
+				Target: "Fail>1.5%(Pass>=98.5%)",
 			}
 			if _, ok := re.Provider.Plugins[plugin.PluginNameOpenShiftConformance]; !ok {
 				return res
@@ -303,7 +303,7 @@ $ /opct report archive.tar.gz
 				return res
 			}
 			perc := (float64(p.Stat.Failed) / float64(p.Stat.Total)) * 100
-			res.Actual = fmt.Sprintf("Fail==%.2f%%(%d)", perc, p.Stat.Failed)
+			res.Actual = fmt.Sprintf("%.2f%%(%d)", perc, p.Stat.Failed)
 			if perc > 1.5 {
 				return res
 			}
@@ -721,7 +721,7 @@ and they are based on the observed values in known, and tested, cloud providers/
 Run the report with debug flag <code>--loglevel=debug</code>:
 ~~~text
 (...)
-DEBU[2023-09-25T12:52:05-03:00] Check OPCT-010 Failed Acceptance criteria: want=[<500] got=[690.412] 
+DEBU[2023-09-25T12:52:05-03:00] Check OPCT-010 Failed Acceptance criteria: want=[<500] got=[690.412]
 DEBU[2023-09-25T12:52:05-03:00] Check OPCT-011 Failed Acceptance criteria: want=[<1000] got=[3091.49]
 ~~~
 
