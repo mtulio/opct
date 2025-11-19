@@ -220,6 +220,140 @@ go mod graph | grep <pattern>
 go mod graph | grep "^github.com/your/project " | head -30
 ```
 
+#### Bumping Kubernetes and OpenShift Client Libraries
+
+**When to use**: Update Kubernetes and OpenShift client libraries to the latest stable versions.
+
+**Command pattern**: "Bump the dependencies to the latest stable versions" or "Update k8s and openshift client libraries"
+
+##### OpenShift Client Libraries
+
+OpenShift uses branch-based versioning with the pattern `release-X.Y` (e.g., `release-4.22`).
+
+**Repositories to check**:
+- [`github.com/openshift/api`](https://github.com/openshift/api/branches) - OpenShift API definitions
+- [`github.com/openshift/client-go`](https://github.com/openshift/client-go/branches) - OpenShift Go client
+
+**How to find the latest version**:
+1. Visit the repository's branches page (append `/branches` to the GitHub URL)
+2. Look for the highest numbered `release-X.Y` branch (e.g., `release-4.22` is newer than `release-4.21`)
+3. The latest branch represents the latest stable OpenShift version
+
+**How to update**:
+```bash
+# Check current version in go.mod
+grep "github.com/openshift/api" go.mod
+grep "github.com/openshift/client-go" go.mod
+
+# Example output (current):
+# github.com/openshift/api v0.0.0-20250225181102-cb44c196e68f // github.com/openshift/api@release-4.18
+
+# Update to latest stable branch (e.g., release-4.22)
+go get github.com/openshift/api@release-4.22
+go get github.com/openshift/client-go@release-4.22
+
+# Resolve dependencies
+go mod tidy
+```
+
+##### Kubernetes Client Libraries
+
+Kubernetes uses semantic versioning with the pattern `v0.X.Y` which corresponds to Kubernetes `v1.X.Y`.
+
+**Repositories to check**:
+- [`k8s.io/api`](https://github.com/kubernetes/api/branches) - Kubernetes API definitions
+- [`k8s.io/apimachinery`](https://github.com/kubernetes/apimachinery/branches) - Kubernetes API machinery
+- [`k8s.io/client-go`](https://github.com/kubernetes/client-go/branches) - Kubernetes Go client
+- [`k8s.io/utils`](https://github.com/kubernetes/utils/branches) - Kubernetes utility functions
+
+**Version mapping**:
+- Kubernetes `v1.34.x` → client-go `v0.34.x`
+- Kubernetes `v1.35.x` → client-go `v0.35.x`
+
+**How to find the latest version**:
+1. Visit the repository's branches page
+2. Look for the highest numbered `release-X.Y` branch (e.g., `release-1.34`)
+3. The corresponding client library version is `v0.X.Y` (e.g., `v0.34.x`)
+
+**How to update**:
+```bash
+# Check current version in go.mod
+grep "k8s.io/" go.mod | grep -E "(api|apimachinery|client-go|utils)"
+
+# Example output (current):
+# k8s.io/api v0.32.2
+# k8s.io/apimachinery v0.32.2
+# k8s.io/client-go v0.32.2
+
+# Update to latest stable version (e.g., v0.34.x)
+# Note: Use @latest to get the latest patch version in the 0.34 series
+go get k8s.io/api@v0.34.0
+go get k8s.io/apimachinery@v0.34.0
+go get k8s.io/client-go@v0.34.0
+go get k8s.io/utils@latest
+
+# Resolve dependencies and update to latest patch versions
+go mod tidy
+```
+
+##### Complete Update Procedure
+
+```bash
+# 1. Check latest stable versions
+# OpenShift: Check https://github.com/openshift/api/branches for latest release-X.Y
+# Kubernetes: Check https://github.com/kubernetes/client-go/branches for latest release-X.Y
+
+# 2. Update OpenShift libraries (e.g., to release-4.22)
+go get github.com/openshift/api@release-4.22
+go get github.com/openshift/client-go@release-4.22
+
+# 3. Update Kubernetes libraries (e.g., to v0.34.0)
+go get k8s.io/api@v0.34.0
+go get k8s.io/apimachinery@v0.34.0
+go get k8s.io/client-go@v0.34.0
+go get k8s.io/utils@latest
+
+# 4. Resolve all dependencies
+go mod tidy
+
+# 5. Validate changes
+make test
+make vet
+make build
+
+# 6. Verify updated versions in go.mod
+grep "github.com/openshift/api" go.mod
+grep "github.com/openshift/client-go" go.mod
+grep "k8s.io/" go.mod | grep -E "(api|apimachinery|client-go|utils)"
+
+# 7. Commit changes
+git add go.mod go.sum
+git commit -m "chore: bump k8s and openshift client libraries to latest stable
+
+Updated client library dependencies:
+- OpenShift API: release-4.XX → release-4.YY
+- OpenShift client-go: release-4.XX → release-4.YY
+- k8s.io/api: v0.XX.X → v0.YY.Z
+- k8s.io/apimachinery: v0.XX.X → v0.YY.Z
+- k8s.io/client-go: v0.XX.X → v0.YY.Z
+- k8s.io/utils: updated to latest
+
+Validation:
+- ✅ make test - all tests passed
+- ✅ make vet - no issues found
+- ✅ make build - successful
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>"
+```
+
+##### Version Compatibility Notes
+
+- **OpenShift and Kubernetes versions should be compatible**: OpenShift 4.22 is based on Kubernetes 1.34, so updating both together is recommended
+- **Always update to stable releases**: Use release branches (not master/main) for production dependencies
+- **Test thoroughly after updates**: Client library updates may introduce API changes that require code modifications
+
 ---
 
 ## Validation Procedures
