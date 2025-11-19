@@ -56,25 +56,25 @@ func (p *MustGatherPodNetworkChecks) Parse(data map[string]interface{}) {
 	// TODO#2 use reflection to read data
 	prefixErr := "must-gather extracting file pod_network_connectivity_check"
 	for _, d := range data["items"].([]interface{}) {
-		item := d.(map[interface{}]interface{})
+		item := d.(map[string]interface{})
 
 		if item["metadata"] == nil {
 			log.Debugf("%s/invalid metadata: %v", prefixErr, item["metadata"])
 			continue
 		}
-		metadata := item["metadata"].(map[interface{}]interface{})
+		metadata := item["metadata"].(map[string]interface{})
 
 		if item["spec"] == nil {
 			log.Debugf("%s/invalid spec: %v", prefixErr, item["spec"])
 			continue
 		}
-		spec := item["spec"].(map[interface{}]interface{})
+		spec := item["spec"].(map[string]interface{})
 
 		if item["status"] == nil {
 			log.Debugf("%s/invalid itme/status: %v", prefixErr, item)
 			continue
 		}
-		status := item["status"].(map[interface{}]interface{})
+		status := item["status"].(map[string]interface{})
 
 		name := metadata["name"].(string)
 		check := &podNetworkCheck{
@@ -91,21 +91,21 @@ func (p *MustGatherPodNetworkChecks) Parse(data map[string]interface{}) {
 			failures := status["failures"].([]interface{})
 			check.TotalFailures = int64(len(failures))
 			for _, f := range failures {
-				if f.(map[interface{}]interface{})["time"] == nil {
+				if f.(map[string]interface{})["time"] == nil {
 					continue
 				}
 				nf := &networkCheckFailure{
 					Name: name,
-					Time: f.(map[interface{}]interface{})["time"].(string),
+					Time: f.(map[string]interface{})["time"].(string),
 				}
-				if f.(map[interface{}]interface{})["latency"] != nil {
-					nf.Latency = f.(map[interface{}]interface{})["latency"].(string)
+				if f.(map[string]interface{})["latency"] != nil {
+					nf.Latency = f.(map[string]interface{})["latency"].(string)
 				}
-				if f.(map[interface{}]interface{})["reason"] != nil {
-					nf.Reason = f.(map[interface{}]interface{})["reason"].(string)
+				if f.(map[string]interface{})["reason"] != nil {
+					nf.Reason = f.(map[string]interface{})["reason"].(string)
 				}
-				if f.(map[interface{}]interface{})["message"] != nil {
-					nf.Message = f.(map[interface{}]interface{})["message"].(string)
+				if f.(map[string]interface{})["message"] != nil {
+					nf.Message = f.(map[string]interface{})["message"].(string)
 				}
 				netFailures = append(netFailures, nf)
 			}
@@ -117,15 +117,15 @@ func (p *MustGatherPodNetworkChecks) Parse(data map[string]interface{}) {
 			check.TotalOutages = int64(len(outages))
 			for _, o := range outages {
 				no := &networkOutage{Name: name}
-				if o.(map[interface{}]interface{})["start"] == nil {
+				if o.(map[string]interface{})["start"] == nil {
 					continue
 				}
-				no.Start = o.(map[interface{}]interface{})["start"].(string)
-				if o.(map[interface{}]interface{})["end"] != nil {
-					no.End = o.(map[interface{}]interface{})["end"].(string)
+				no.Start = o.(map[string]interface{})["start"].(string)
+				if o.(map[string]interface{})["end"] != nil {
+					no.End = o.(map[string]interface{})["end"].(string)
 				}
-				if o.(map[interface{}]interface{})["message"] != nil {
-					no.Message = o.(map[interface{}]interface{})["message"].(string)
+				if o.(map[string]interface{})["message"] != nil {
+					no.Message = o.(map[string]interface{})["message"].(string)
 				}
 				netOutages = append(netOutages, no)
 			}
