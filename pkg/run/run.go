@@ -236,7 +236,7 @@ func (r *RunOptions) PreRunCheck(kclient kubernetes.Interface) error {
 	}
 	if !managed {
 		if !r.devSkipChecks {
-			return fmt.Errorf("OpenShift Image Registry must deployed before validation can run")
+			return fmt.Errorf("openShift Image Registry must deployed before validation can run")
 		}
 		log.Warn("DEVEL MODE, THIS IS NOT SUPPORTED: Skipping unmanaged image registry check")
 	}
@@ -320,7 +320,7 @@ EOF`)
 		}
 		if len(poolList.Items) == 0 {
 			fmt.Println()
-			return fmt.Errorf("MachineConfigPool %q not found, create it and try again", mcpName)
+			return fmt.Errorf("machineConfigPool %q not found, create it and try again", mcpName)
 		}
 		isFound := false
 		isPaused := false
@@ -335,10 +335,10 @@ EOF`)
 		}
 		if !isFound {
 			mcpCreateInstructions()
-			return fmt.Errorf("MachineConfigPool %q not found, create it and try again", mcpName)
+			return fmt.Errorf("machineConfigPool %q not found, create it and try again", mcpName)
 		}
 		if !isPaused {
-			return fmt.Errorf("MachineConfigPool %q is not paused, set `spec.pause=true` and try again", mcpName)
+			return fmt.Errorf("machineConfigPool %q is not paused, set `spec.pause=true` and try again", mcpName)
 		}
 	}
 

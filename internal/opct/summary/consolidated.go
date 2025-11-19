@@ -344,7 +344,7 @@ func (cs *ConsolidatedSummary) applyFilterFlakeForPlugin(pluginName string, filt
 	// Query Flaky only the FilteredBaseline to avoid many external queries.
 	ver, err := cs.GetProvider().GetOpenShift().GetClusterVersionXY()
 	if err != nil {
-		return fmt.Errorf("Error getting cluster version: %v", err)
+		return fmt.Errorf("error getting cluster version: %v", err)
 	}
 
 	api := sippy.NewSippyAPI(ver)
@@ -428,7 +428,7 @@ func (cs *ConsolidatedSummary) loadBaselineFromAPI() error {
 	if err != nil {
 		os, err := cs.Provider.OpenShift.GetClusterVersion()
 		if err != nil {
-			return fmt.Errorf("Error getting cluster version: %v", err)
+			return fmt.Errorf("error getting cluster version: %v", err)
 		}
 		ocpRelease = fmt.Sprintf("%s.%s", strings.Split(os.Desired, ".")[0], strings.Split(os.Desired, ".")[1])
 	}
@@ -992,7 +992,7 @@ func (cs *ConsolidatedSummary) buildDocumentationForPlugin(pluginName string) er
 		docUserBaseURL = "https://github.com/openshift/origin/blob/master/test/extended/README.md"
 		docSourceBaseURL = docUserBaseURL
 	default:
-		return fmt.Errorf("Plugin not found to apply filter: Flaky")
+		return fmt.Errorf("plugin not found to apply filter: Flaky")
 	}
 
 	if ps.Documentation == nil {
