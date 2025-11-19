@@ -2,8 +2,6 @@ module github.com/redhat-openshift-ecosystem/opct
 
 go 1.25.0
 
-toolchain go1.25.4
-
 require (
 	github.com/openshift/api v0.0.0-20251119073004-138912d4ee99 // github.com/openshift/api@release-4.22
 	github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235 // github.com/openshift/client-go@release-4.22

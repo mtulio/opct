@@ -54,7 +54,11 @@ OPCT is organized into the following key components:
 
 1. **`go.mod`**
    - Update `go` directive (e.g., `go 1.25.0`)
-   - Update `toolchain` directive to match environment (e.g., `toolchain go1.25.4`)
+   - **Remove or comment out `toolchain` directive** if present
+   - **Important**: The `toolchain` directive can cause CI failures with golangci-lint
+     if the toolchain version is higher than the Go version used to build golangci-lint.
+     Example: `toolchain go1.25.4` fails if golangci-lint was built with Go 1.24.
+     Use only the `go` directive for maximum compatibility.
 
 2. **`.github/workflows/*.yaml` (ALL workflow files)**
    - Search for ALL files with `GO_VERSION`: `grep -rn "GO_VERSION" .github/workflows/`
@@ -87,7 +91,7 @@ go version  # e.g., go version go1.25.4 linux/amd64
 
 # 2. Update go.mod
 # - Set go directive to major.minor.patch (e.g., 1.25.0)
-# - Set toolchain to exact version from environment (e.g., go1.25.4)
+# - Remove toolchain directive if present (to avoid golangci-lint compatibility issues)
 
 # 3. Update ALL .github/workflows/*.yaml files
 # - Search for all GO_VERSION references: grep -rn "GO_VERSION" .github/workflows/
@@ -114,14 +118,15 @@ make test-lint  # May show pre-existing YAML lint issues - that's OK
 git add go.mod go.sum .github/workflows/*.yaml hack/Containerfile hack/*.sh
 git commit -m "chore: bump Go version to X.Y.Z
 
-Updated Go version from X.Y.Z to A.B.C with toolchain A.B.D
-to use the latest Go version available in the build environment.
+Updated Go version from X.Y.Z to A.B.C to use the latest
+Go version available in the build environment.
 
 Changes:
-- Updated go directive to A.B.C
-- Updated toolchain to goA.B.D
+- Updated go directive to A.B.C in go.mod
+- Removed toolchain directive (for CI compatibility)
 - Updated CI workflows GO_VERSION to A.B (4 workflow files)
 - Updated hack/Containerfile golang image to A.B-alpine
+- Updated hack/*.sh golang images to A.B
 - Resolved dependencies with go mod tidy
 
 Validation:
@@ -144,7 +149,10 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - **YAML linting errors**: These are typically pre-existing issues in `.github/workflows/*.yaml` files and unrelated to Go version changes
 - **Dependency conflicts**: Run `go mod tidy` to resolve; if issues persist, check for incompatible dependencies
-- **Toolchain mismatch**: Ensure `toolchain` directive matches the exact patch version in your environment
+- **golangci-lint version mismatch**: If CI fails with "the Go language version used to build golangci-lint is lower than the targeted Go version":
+  - Remove the `toolchain` directive from `go.mod`
+  - The `toolchain` directive specifies a patch version that may be higher than the Go version used to build golangci-lint
+  - Use only the `go` directive for maximum compatibility with CI tools
 
 ---
 
