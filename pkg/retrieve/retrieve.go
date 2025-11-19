@@ -76,7 +76,7 @@ func retrieveResultsRetry(sclient sonobuoyclient.Interface, destinationDirectory
 		return nil // Retrieved results without a problem
 	}
 
-	return fmt.Errorf("Retrieval retry limit reached")
+	return fmt.Errorf("retrieval retry limit reached")
 }
 
 func retrieveResults(sclient sonobuoyclient.Interface, destinationDirectory string) error {

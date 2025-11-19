@@ -339,7 +339,7 @@ func showReportAggregatedSummary(re *report.ReportData) error {
 
 	showPluginSummary := func(w *tabwriter.Writer, pluginName string) {
 		if _, ok := re.Provider.Plugins[pluginName]; !ok {
-			errlog.LogError(fmt.Errorf("Unable to load plugin %s", pluginName))
+			errlog.LogError(fmt.Errorf("unable to load plugin %s", pluginName))
 		}
 		plK8S := re.Provider.Plugins[pluginName]
 		name := fmt.Sprintf(" %s", plK8S.Name)

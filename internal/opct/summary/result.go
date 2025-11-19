@@ -186,11 +186,11 @@ func (rs *ResultSummary) openReader() (func(), error) {
 	gzr, err := gzip.NewReader(f)
 	if err != nil {
 		rs.reader = nil
-		return func() { f.Close() }, fmt.Errorf("could not make a gzip reader: %w", err)
+		return func() { _ = f.Close() }, fmt.Errorf("could not make a gzip reader: %w", err)
 	}
 
 	rs.reader = results.NewReaderWithVersion(gzr, results.VersionTen)
-	return func() { gzr.Close(); f.Close() }, nil
+	return func() { _ = gzr.Close(); _ = f.Close() }, nil
 }
 
 // processPlugin receives the plugin name and load the result file to be processed.

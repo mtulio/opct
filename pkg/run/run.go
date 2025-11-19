@@ -215,7 +215,7 @@ func (r *RunOptions) PreRunCheck(kclient kubernetes.Interface) error {
 		}
 		log.Errorf("Preflights checks failed: operators are not in ready state, check the status with 'oc get clusteroperator': %v", errorMessages)
 		if !r.devSkipChecks {
-			return fmt.Errorf("All Cluster Operators must be available, not progressing, and not degraded before validation can run.")
+			return fmt.Errorf("all Cluster Operators must be available, not progressing, and not degraded before validation can run")
 		}
 		log.Warnf("DEVEL MODE, THIS IS NOT SUPPORTED: Skipping Cluster Operator checks: %v", errs)
 	}
