@@ -11,6 +11,6 @@ else
     --env IS_CONTAINER=TRUE \
     --volume "${PWD}:/go/src/github.com/redhat-openshift-ecosystem/opct:z" \
     --workdir /go/src/github.com/redhat-openshift-ecosystem/opct \
-    docker.io/golang:1.25 \
+    docker.io/golang:1.24 \
     ./hack/go-imports.sh "${@}"
 fi

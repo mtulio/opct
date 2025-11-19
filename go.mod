@@ -1,6 +1,6 @@
 module github.com/redhat-openshift-ecosystem/opct
 
-go 1.25.0
+go 1.24.0
 
 require (
 	github.com/openshift/api v0.0.0-20251119073004-138912d4ee99 // github.com/openshift/api@release-4.22
