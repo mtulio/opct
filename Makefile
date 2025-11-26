@@ -78,7 +78,7 @@ publish-devel: publish-darwin-arm64-devel
 test-lint:
 	@echo "Running linting tools"
 	# Download https://github.com/golangci/golangci-lint/releases/tag/v1.59.1
-	#golangci-lint run --timeout=10m
+	golangci-lint run --timeout=10m
 	# yamllint: pip install yamllint
 	yamllint .github/workflows/*.yaml
 
