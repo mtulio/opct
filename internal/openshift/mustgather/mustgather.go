@@ -10,10 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pkg/errors"
+	
 	"github.com/redhat-openshift-ecosystem/opct/internal/opct/archive"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 	"k8s.io/utils/ptr"
 )
 
@@ -195,7 +195,7 @@ func (mg *MustGather) extract(tarball *tar.Reader) error {
 
 		// return on error
 		case err != nil:
-			return errors.Wrapf(err, "error reading tarball")
+			return fmt.Errorf("error reading tarball: %w", err)
 
 		// skip it when the headr isn't set (not sure how this happens)
 		case header == nil:

@@ -12,8 +12,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/pkg/errors"
-
 	"github.com/redhat-openshift-ecosystem/opct/internal/opct/metrics"
 	"github.com/redhat-openshift-ecosystem/opct/internal/opct/plugin"
 	"github.com/redhat-openshift-ecosystem/opct/internal/openshift/ci/sippy"
@@ -275,7 +273,7 @@ func (cs *ConsolidatedSummary) applyFilterBaselineForPlugin(pluginName string, f
 		ps = cs.GetProvider().GetOpenShift().GetResultConformanceReplay()
 
 	default:
-		return errors.New("Suite not found to apply filter: Flaky")
+		return fmt.Errorf("suite not found to apply filter: Flaky")
 	}
 
 	filterFailures, filterFailuresExcluded := ps.GetFailuresByFilterID(filterID)
@@ -339,14 +337,14 @@ func (cs *ConsolidatedSummary) applyFilterFlakeForPlugin(pluginName string, filt
 		ps = cs.GetProvider().GetOpenShift().GetResultConformanceReplay()
 
 	default:
-		return errors.New("Suite not found to apply filter: Flaky")
+		return fmt.Errorf("suite not found to apply filter: Flaky")
 	}
 
 	// TODO: define if we will check for flakes for all failures or only filtered
 	// Query Flaky only the FilteredBaseline to avoid many external queries.
 	ver, err := cs.GetProvider().GetOpenShift().GetClusterVersionXY()
 	if err != nil {
-		return errors.Errorf("Error getting cluster version: %v", err)
+		return fmt.Errorf("error getting cluster version: %v", err)
 	}
 
 	api := sippy.NewSippyAPI(ver)
@@ -430,7 +428,7 @@ func (cs *ConsolidatedSummary) loadBaselineFromAPI() error {
 	if err != nil {
 		os, err := cs.Provider.OpenShift.GetClusterVersion()
 		if err != nil {
-			return errors.Errorf("Error getting cluster version: %v", err)
+			return fmt.Errorf("error getting cluster version: %v", err)
 		}
 		ocpRelease = fmt.Sprintf("%s.%s", strings.Split(os.Desired, ".")[0], strings.Split(os.Desired, ".")[1])
 	}
@@ -438,7 +436,7 @@ func (cs *ConsolidatedSummary) loadBaselineFromAPI() error {
 
 	cs.BaselineAPI = baseline.NewBaselineReportSummary()
 	if err := cs.BaselineAPI.GetLatestRawSummaryFromPlatformWithFallback(ocpRelease, platformType); err != nil {
-		return errors.Wrap(err, "failed to get baseline from API")
+		return fmt.Errorf("failed to get baseline from API: %w", err)
 	}
 	return nil
 }
@@ -938,7 +936,7 @@ func createDir(path string, ignoreexisting bool) error {
 		if ignoreexisting {
 			return nil
 		}
-		return errors.New(fmt.Sprintf("directory already exists: %s", path))
+		return fmt.Errorf("directory already exists: %s", path)
 	}
 
 	if err := os.Mkdir(path, os.ModePerm); err != nil {
@@ -994,7 +992,7 @@ func (cs *ConsolidatedSummary) buildDocumentationForPlugin(pluginName string) er
 		docUserBaseURL = "https://github.com/openshift/origin/blob/master/test/extended/README.md"
 		docSourceBaseURL = docUserBaseURL
 	default:
-		return errors.New("Plugin not found to apply filter: Flaky")
+		return fmt.Errorf("plugin not found to apply filter: Flaky")
 	}
 
 	if ps.Documentation == nil {

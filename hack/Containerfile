@@ -1,5 +1,5 @@
 
-FROM docker.io/golang:1.23-alpine AS builder
+FROM docker.io/golang:1.25-alpine AS builder
 ARG RELEASE_TAG
 RUN apk add --no-cache --update make git
 WORKDIR /go/src/github.com/redhat-openshift-ecosystem/opct

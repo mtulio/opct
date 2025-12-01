@@ -2,9 +2,9 @@ package run
 
 import (
 	"bytes"
+	"fmt"
 	"text/template"
 
-	"github.com/pkg/errors"
 	efs "github.com/redhat-openshift-ecosystem/opct/internal/assets"
 	log "github.com/sirupsen/logrus"
 	"github.com/vmware-tanzu/sonobuoy/pkg/plugin/loader"
@@ -15,12 +15,12 @@ import (
 func ProcessManifestTemplates(r *RunOptions, manifest []byte) ([]byte, error) {
 	pluginTpl, err := template.New("manifest").Parse(string(manifest))
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to parse manifest ")
+		return nil, fmt.Errorf("unable to parse manifest: %w", err)
 	}
 	var imageBuffer bytes.Buffer
 	err = pluginTpl.Execute(&imageBuffer, r)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to update manifest")
+		return nil, fmt.Errorf("unable to update manifest: %w", err)
 	}
 	return imageBuffer.Bytes(), nil
 }
