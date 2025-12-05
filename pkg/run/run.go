@@ -98,10 +98,8 @@ func hideOptionalFlags(cmd *cobra.Command, flag string) {
 }
 
 func NewCmdRun() *cobra.Command {
-	var err error
-	var kclient kubernetes.Interface
-	var sclient sonobuoyclient.Interface
 	o := newRunOptions()
+	var cli *client.Client
 
 	cmd := &cobra.Command{
 		Use:   "run",
@@ -109,19 +107,20 @@ func NewCmdRun() *cobra.Command {
 		Long:  `Launches the provider validation environment inside of an already running OpenShift cluster`,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			// Client setup
-			kclient, sclient, err = client.CreateClients()
+			var err error
+			cli, err = client.NewClient()
 			if err != nil {
 				log.WithError(err).Error("pre-run failed when creating clients")
 				return err
 			}
 
 			// Pre-run validations
-			if errs := o.PreRunValidations(kclient); len(errs) > 0 {
+			if errs := o.PreRunValidations(cli.KClient, cli.RestConfig); len(errs) > 0 {
 				return fmt.Errorf("pre-run validation failed with %d errors, fix it and try again", len(errs))
 			}
 
 			// Pre-run setup
-			if err = o.PreRunSetup(kclient); err != nil {
+			if err = o.PreRunSetup(cli.KClient); err != nil {
 				log.WithError(err).Error("pre-run failed when initializing the environment")
 				return err
 			}
@@ -129,7 +128,7 @@ func NewCmdRun() *cobra.Command {
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			log.Info("Running OPCT...")
-			if err := o.Run(kclient, sclient); err != nil {
+			if err := o.Run(cli); err != nil {
 				log.WithError(err).Errorf("execution finished with errors.")
 				return err
 			}
@@ -140,7 +139,7 @@ func NewCmdRun() *cobra.Command {
 			}
 
 			log.Info("Jobs scheduled! Waiting for resources be created...")
-			if err := wait.WaitForRequiredResources(kclient); err != nil {
+			if err := wait.WaitForRequiredResources(cli.KClient); err != nil {
 				log.WithError(err).Errorf("error waiting for required pods to become ready")
 				return err
 			}
@@ -148,8 +147,8 @@ func NewCmdRun() *cobra.Command {
 			// Retrieve the first status and print it, finishing when --watch is not set.
 			s := status.NewStatus(&status.StatusInput{
 				Watch:   o.watch,
-				KClient: kclient,
-				SClient: sclient,
+				KClient: cli.KClient,
+				SClient: cli.SClient,
 			})
 			if err := s.WaitForStatusReport(cmd.Context()); err != nil {
 				log.WithError(err).Error("error retrieving aggregator status")
@@ -199,6 +198,11 @@ func NewCmdRun() *cobra.Command {
 	cmd.Flags().BoolVar(&o.dedicated, "dedicated", defaultDedicatedFlag, "Setup plugins to run in dedicated test environment.")
 	cmd.Flags().BoolVar(&o.dryRun, "dry-run", defaultDryRunFlag, "Run preflight checks only without creating resources")
 	cmd.Flags().BoolVarP(&o.verbose, "verbose", "v", defaultVerboseFlag, "Print rendered plugin manifests to stdout")
+	cmd.Flags().BoolVar(&o.devSkipChecks, "devel-skip-checks", false, "Developer Mode only: skip checks")
+
+	// dev-count is an alias of devel-limit-tests (both flags bind to the same variable).
+	// TODO(mtulio): remove this flag in the future.
+	cmd.Flags().StringVar(&o.devCount, "devel-limit-tests", "0", "Developer Mode only: run small random set of tests. Default: 0 (disabled)")
 	cmd.Flags().StringVar(&o.devCount, "dev-count", "0", "Developer Mode only: run small random set of tests. Default: 0 (disabled)")
 
 	hideOptionalFlags(cmd, "plugin")
@@ -407,7 +411,7 @@ func (r *RunOptions) PreRunSetup(kclient kubernetes.Interface) error {
 }
 
 // createConfigMap generic way to create the configMap on the certification namespace.
-func (r *RunOptions) createConfigMap(kclient kubernetes.Interface, sclient sonobuoyclient.Interface, cm *v1.ConfigMap) error {
+func (r *RunOptions) createConfigMap(kclient kubernetes.Interface, cm *v1.ConfigMap) error {
 	_, err := kclient.CoreV1().ConfigMaps(pkg.CertificationNamespace).Create(context.TODO(), cm, metav1.CreateOptions{})
 	if err != nil {
 		return err
@@ -416,7 +420,7 @@ func (r *RunOptions) createConfigMap(kclient kubernetes.Interface, sclient sonob
 }
 
 // Run setup and provision the certification environment.
-func (r *RunOptions) Run(kclient kubernetes.Interface, sclient sonobuoyclient.Interface) error {
+func (r *RunOptions) Run(cli *client.Client) error {
 	var manifests []*manifest.Manifest
 
 	imageRepository := pkg.DefaultToolsRepository
@@ -444,7 +448,7 @@ func (r *RunOptions) Run(kclient kubernetes.Interface, sclient sonobuoyclient.In
 	}
 
 	// Let Sonobuoy do some preflight checks before we run
-	errs := sclient.PreflightChecks(&sonobuoyclient.PreflightConfig{
+	errs := cli.SClient.PreflightChecks(&sonobuoyclient.PreflightConfig{
 		Namespace:           pkg.CertificationNamespace,
 		DNSNamespace:        "openshift-dns",
 		DNSPodLabels:        []string{"dns.operator.openshift.io/daemonset-dns=default"},
@@ -460,44 +464,65 @@ func (r *RunOptions) Run(kclient kubernetes.Interface, sclient sonobuoyclient.In
 		log.Warn("DEVEL MODE, THIS IS NOT SUPPORTED: Skipping preflight checks")
 	}
 
-	// Create version information ConfigMap
-	if !r.dryRun {
-		if err := r.createConfigMap(kclient, sclient, &v1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pkg.VersionInfoConfigMapName,
-				Namespace: pkg.CertificationNamespace,
-			},
-			Data: map[string]string{
-				"cli-version":      version.Version.Version,
-				"cli-commit":       version.Version.Commit,
-				"sonobuoy-version": buildinfo.Version,
-				"sonobuoy-image":   r.sonobuoyImage,
-			},
-		}); err != nil {
-			return err
-		}
-
-		configMapData := map[string]string{
+	// Create environment configuration ConfigMaps
+	configVersion := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pkg.VersionInfoConfigMapName,
+			Namespace: pkg.CertificationNamespace,
+		},
+		Data: map[string]string{
+			"cli-version":      version.Version.Version,
+			"cli-commit":       version.Version.Commit,
+			"sonobuoy-version": buildinfo.Version,
+			"sonobuoy-image":   r.sonobuoyImage,
+		},
+	}
+	configPlugins := &v1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pkg.PluginsVarsConfigMapName,
+			Namespace: pkg.CertificationNamespace,
+		},
+		Data: map[string]string{
 			"dev-count":             r.devCount,
 			"run-mode":              r.mode,
 			"upgrade-target-images": r.upgradeImage,
+		},
+	}
+	if len(r.imageRepository) > 0 {
+		configPlugins.Data["mirror-registry"] = r.imageRepository
+	}
+	if err := r.setSuiteName(cli, configPlugins.Data); err != nil {
+		return err
+	}
+
+	if r.verbose {
+		versionJSON, err := json.MarshalIndent(configVersion, "", "  ")
+		if err != nil {
+			log.Warnf("Unable to marshal ConfigMap %s for printing: %v", configVersion.Name, err)
+		} else {
+			fmt.Printf("\n---\n# ConfigMap: %s\n---\n%s\n", configVersion.Name, string(versionJSON))
 		}
 
-		if len(r.imageRepository) > 0 {
-			configMapData["mirror-registry"] = r.imageRepository
+		pluginsJSON, err := json.MarshalIndent(configPlugins, "", "  ")
+		if err != nil {
+			log.Warnf("Unable to marshal ConfigMap %s for printing: %v", configPlugins.Name, err)
+		} else {
+			fmt.Printf("\n---\n# ConfigMap: %s\n---\n%s\n", configPlugins.Name, string(pluginsJSON))
 		}
+	}
 
-		if err := r.createConfigMap(kclient, sclient, &v1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      pkg.PluginsVarsConfigMapName,
-				Namespace: pkg.CertificationNamespace,
-			},
-			Data: configMapData,
-		}); err != nil {
+	if r.dryRun {
+		log.Debugf("Dry-run mode enabled, skipping creation of environment configuration ConfigMaps")
+	} else {
+		if err := r.createConfigMap(cli.KClient, configVersion); err != nil {
+			return err
+		}
+		if err := r.createConfigMap(cli.KClient, configPlugins); err != nil {
 			return err
 		}
 	}
 
+	// Loading Plugins configurations / manifests
 	if r.plugins == nil || len(*r.plugins) == 0 {
 		log.Debugf("Loading default plugins")
 		var err error
@@ -565,7 +590,7 @@ func (r *RunOptions) Run(kclient kubernetes.Interface, sclient sonobuoyclient.In
 		return nil
 	}
 
-	err := sclient.Run(runConfig)
+	err := cli.SClient.Run(runConfig)
 	return err
 }
 
@@ -668,4 +693,52 @@ func checkRegistry(irClient irclient.Interface) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// setSuiteName sets the suiteNameKubernetesConformance in the configMapData based on the cluster version.
+func (r *RunOptions) setSuiteName(cli *client.Client, configMapData map[string]string) error {
+	// Gather cluster version to check if it is 4.20+
+	// If 4.20+, set the suiteNameKubernetesConformance in the configMapData to "kubernetes/conformance/parallel",
+	// otherwise set it to "kubernetes/conformance".
+	// https://issues.redhat.com/browse/OCPBUGS-66219
+	suiteNameKubernetesConformance := "kubernetes/conformance"
+	suiteNameKubernetesConformanceParallel := "kubernetes/conformance/parallel"
+
+	// Get the cluster version
+	oc, err := coclient.NewForConfig(cli.RestConfig)
+	if err != nil {
+		return fmt.Errorf("error creating config client: %w", err)
+	}
+	cv, err := oc.ConfigV1().ClusterVersions().Get(context.TODO(), "version", metav1.GetOptions{})
+	if err != nil {
+		log.Warnf("Failed to get cluster version, defaulting to kubernetes/conformance suite with openshift-tests: %v", err)
+		return nil
+	}
+
+	// Extract the version string
+	version := cv.Status.Desired.Version
+	if version == "" {
+		log.Warn("Cluster version is empty, defaulting to kubernetes/conformance suite with openshift-tests")
+		return nil
+	}
+
+	log.Debugf("Detected cluster version: %s", version)
+
+	// Parse the version to check if it's >= 4.20
+	// Version format is typically "4.20.0" or "4.20.0-rc.1"
+	var major, minor int
+	_, err = fmt.Sscanf(version, "%d.%d", &major, &minor)
+	if err != nil {
+		log.Warnf("Failed to parse cluster version %q, defaulting to kubernetes/conformance suite with openshift-tests: %v", version, err)
+		return nil
+	}
+
+	// For OCP 4.20+, use k8s-tests-ext binary with parallel sub-suite
+	configMapData["suiteNameKubernetesConformance"] = suiteNameKubernetesConformance
+	if major == 4 && minor >= 20 {
+		configMapData["suiteNameKubernetesConformance"] = suiteNameKubernetesConformanceParallel
+	}
+	log.Infof("Setting configMapData[suiteNameKubernetesConformance] to %s for OCP %d.%d", configMapData["suiteNameKubernetesConformance"], major, minor)
+
+	return nil
 }
