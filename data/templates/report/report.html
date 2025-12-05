@@ -1129,7 +1129,12 @@ tar xfJ results/</span>plugins<span class="hljs-regexp">/99-openshift-artifacts-
               counters.namespace[log.Namespace] = 0
             }
             counters.errors[kerror] += log.ErrorCounters[kerror]
-            counters.namespace[log.Namespace] += log.ErrorCounters[kerror]
+            // Only count "total" pattern for namespace totals to avoid double-counting
+            // Each pod has multiple error patterns (error, total, warning, etc.) but we
+            // should only count the total once per pod, not once per pattern
+            if (kerror === "total") {
+              counters.namespace[log.Namespace] += log.ErrorCounters[kerror]
+            }
             var o = new Map();
             Object.assign(o, {"Name": log.Namespace+"/"+log.Pod});
             Object.assign(o, {"Pattern": kerror});
