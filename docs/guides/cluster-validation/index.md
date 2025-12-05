@@ -138,8 +138,9 @@ OpenShift Platform Type supported by OPCT on Red Hat OpenShift validation progra
 The matrix below describes the OpenShift and OPCT versions supported:
 
 | OPCT [version][releases] | OCP tested versions | OPCT Execution mode                |
-| --                       | --                  | --                                |
-| v0.5.x                   | 4.14-4.18           | regular, upgrade, disconnected     |
+| --                       | --                  | --                                 |
+| v0.6.1                   | 4.16-4.20           | regular, upgrade, disconnected     |
+| v0.5.x-v0.6.0            | 4.14-4.19           | regular, upgrade, disconnected     |
 | v0.4.x                   | 4.10-4.13           | regular, upgrade, disconnected     |
 | v0.3.x                   | 4.9-4.12            | regular, upgrade                   |
 | v0.2.x                   | 4.9-4.11            | regular                            |
