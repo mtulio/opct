@@ -55,21 +55,23 @@ jobs:
 
       - name: Parse version from PR body or input
         id: parse_version
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            VERSION="${{ inputs.version }}"
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="$INPUT_VERSION"
           else
             # Extract version from PR body (expects: Release: vX.Y.Z or Release: vX.Y.Z-prerelease)
             # SemVer regex: v + MAJOR.MINOR.PATCH + optional pre-release (alpha, beta, rc) + optional build metadata
-            # Use heredoc to safely handle multiline PR body
-            VERSION=$(cat <<'EOF' | grep -oP 'Release:\s*\Kv[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?' || echo ""
-${{ github.event.pull_request.body }}
-EOF
-)
+            # Use environment variable to safely handle PR body (prevents script injection)
+            VERSION=$(echo "$PR_BODY" | grep -oP 'Release:\s*\Kv[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?' || echo "")
 
             # Fallback: try PR title
             if [ -z "$VERSION" ]; then
-              VERSION=$(echo '${{ github.event.pull_request.title }}' | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?' || echo "")
+              VERSION=$(echo "$PR_TITLE" | grep -oP 'v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?' || echo "")
             fi
           fi
 
@@ -79,7 +81,7 @@ EOF
             exit 1
           fi
 
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "📦 Detected version: $VERSION"
 
       - name: Validate PR source and target branches

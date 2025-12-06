@@ -43,8 +43,20 @@ jobs:
       - name: Lint YAML files
         run: |
           echo ">> Running YAML lint on data/templates/plugins/"
-          #yamllint .github/workflows/*.yaml
           yamllint data/templates/plugins/*.yaml
+          echo ">> Running YAML lint on .github/workflows/"
+          yamllint .github/workflows/*.yaml
+
+  github_actions:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate GitHub Actions workflows
+        uses: docker://rhysd/actionlint:latest
+        with:
+          args: -color
 
   go_lint:
     runs-on: ubuntu-latest
