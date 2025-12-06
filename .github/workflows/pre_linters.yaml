@@ -43,8 +43,9 @@ jobs:
       - name: Lint YAML files
         run: |
           echo ">> Running YAML lint on data/templates/plugins/"
-          #yamllint .github/workflows/*.yaml
           yamllint data/templates/plugins/*.yaml
+          echo ">> Running YAML lint on .github/workflows/"
+          yamllint .github/workflows/*.yaml
 
   go_lint:
     runs-on: ubuntu-latest
