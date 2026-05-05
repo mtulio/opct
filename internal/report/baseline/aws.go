@@ -28,13 +28,10 @@ func createS3Client(region string) (*s3.S3, *s3manager.Uploader, error) {
 	return svc, uploader, nil
 }
 
-// createCloudFrontClient creates an S3 client with the specified region
+// createCloudFrontClient creates a CloudFront client with the specified region
 func createCloudFrontClient(region string) (*cloudfront.CloudFront, error) {
-	sess, err := session.NewSessionWithOptions(session.Options{
-		Profile: "opct",
-		Config: aws.Config{
-			Region: aws.String(region),
-		},
+	sess, err := session.NewSession(&aws.Config{
+		Region: aws.String(region),
 	})
 	if err != nil {
 		return nil, err

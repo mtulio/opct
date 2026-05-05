@@ -32,105 +32,83 @@ type baselineIndex struct {
 	Latest     map[string]*baselineIndexItem `json:"latest"`
 }
 
-// CreateBaselineIndex list all object from S3 Bucket, extract metadata,
-// and calculate the latest by release and platform type, creating a index.json
-// object.
+// CreateBaselineIndex lists objects from S3, extracts metadata,
+// and calculates the latest by release and platform type, creating an index.json.
+// It uses incremental indexing: loads the existing index and only fetches
+// metadata for new objects not already in the index.
 func (brs *BaselineConfig) CreateBaselineIndex() error {
 	svcS3, _, err := brs.createS3Clients()
 	if err != nil {
 		return fmt.Errorf("failed to create S3 client and validate bucket: %w", err)
 	}
 
-	// List all the objects in the bucket and create index.
 	objects, err := ListObjects(svcS3, brs.bucketRegion, brs.bucketName, "api/v0/result/summary/")
 	if err != nil {
 		return err
+	}
+
+	// Load existing index from S3 for incremental updates.
+	existingIndex, err := brs.loadIndexFromS3(svcS3)
+	if err != nil {
+		log.Warnf("Could not load existing index, performing full reindex: %v", err)
+	}
+
+	knownPaths := make(map[string]bool)
+	if existingIndex != nil {
+		for _, item := range existingIndex.Results {
+			knownPaths[item.Path] = true
+		}
 	}
 
 	index := baselineIndex{
 		LastUpdate: time.Now().Format(time.RFC3339),
 		Latest:     make(map[string]*baselineIndexItem),
 	}
-	// calculate the index for each object (summary)
+
+	// Carry over existing results (clear IsLatest — recalculated below).
+	if existingIndex != nil {
+		for _, item := range existingIndex.Results {
+			item.IsLatest = false
+			index.Results = append(index.Results, item)
+		}
+	}
+
+	var newCount int
 	for _, obj := range objects {
-		// Keys must have the following format: {ocpVersion}_{platformType}_{timestamp}.json
 		objectKey := *obj.Key
 
 		name := objectKey[strings.LastIndex(objectKey, "/")+1:]
-		if name == "index.json" {
+		if name == "index.json" || strings.HasSuffix(name, "_latest.json") {
 			continue
 		}
 
-		// read the object to extract metadata/tags from 'setup.api'
-		objReader, err := svcS3.GetObject(&s3.GetObjectInput{
-			Bucket: aws.String(brs.bucketName),
-			Key:    aws.String(objectKey),
-		})
-		if err != nil {
-			log.Errorf("failed to get object %s: %v", objectKey, err)
+		if knownPaths[objectKey] {
 			continue
 		}
 
-		defer objReader.Body.Close()
-		bd := &BaselineData{}
-		body, err := io.ReadAll(objReader.Body)
+		newCount++
+		item, err := brs.fetchObjectMetadata(svcS3, objectKey, name, obj)
 		if err != nil {
-			log.Errorf("failed to read object data %s: %v", objectKey, err)
+			log.Errorf("failed to process object %s: %v", objectKey, err)
 			continue
 		}
+		index.Results = append(index.Results, item)
+	}
 
-		bd.SetRawData(body)
-		tags, err := bd.GetSetupTags()
-		if err != nil {
-			log.Errorf("failed to deserialize tags/metadata from summary data: %v", err)
-		}
+	log.Infof("Index update: %d existing, %d new, %d total", len(knownPaths), newCount, len(index.Results))
 
-		log.Infof("Processing summary object: %s", name)
-		log.Infof("Processing metadata: %v", tags)
-		openShiftRelease := strings.Split(name, "_")[0]
-		if _, ok := tags["openshiftRelease"]; ok {
-			openShiftRelease = tags["openshiftRelease"].(string)
-		} else {
-			log.Warnf("missing openshiftRelease tag in metadata, extracting from name: %v", openShiftRelease)
-		}
-
-		platformType := strings.Split(name, "_")[1]
-		if _, ok := tags["platformType"]; ok {
-			platformType = tags["platformType"].(string)
-		} else {
-			log.Warnf("missing platformType tag in metadata, extracting from name: %v", platformType)
-		}
-
-		executionDate := strings.Split(name, "_")[2]
-		if _, ok := tags["executionDate"]; ok {
-			executionDate = tags["executionDate"].(string)
-		} else {
-			log.Warnf("missing executionDate tag in metadata, extracting from name: %v", executionDate)
-		}
-
-		// Creating summary item for baseline result
-		res := &baselineIndexItem{
-			Date:             executionDate,
-			Name:             strings.Split(name, ".json")[0],
-			Path:             objectKey,
-			Size:             fmt.Sprintf("%d", *obj.Size),
-			OpenShiftRelease: openShiftRelease,
-			PlatformType:     platformType,
-			Tags:             tags,
-		}
-		// spew.Dump(res)
-		index.Results = append(index.Results, res)
-		latestIndexKey := fmt.Sprintf("%s_%s", openShiftRelease, platformType)
+	// Recalculate latest for all results.
+	for _, res := range index.Results {
+		res.IsLatest = false
+		latestIndexKey := fmt.Sprintf("%s_%s", res.OpenShiftRelease, res.PlatformType)
 		existing, ok := index.Latest[latestIndexKey]
 		if !ok {
 			res.IsLatest = true
 			index.Latest[latestIndexKey] = res
-		} else {
-			if existing.Date < res.Date {
-				existing.IsLatest = false
-				res.IsLatest = true
-				index.Latest[latestIndexKey] = res
-			}
+		} else if existing.Date < res.Date {
+			existing.IsLatest = false
+			res.IsLatest = true
+			index.Latest[latestIndexKey] = res
 		}
 	}
 
@@ -200,15 +178,110 @@ aws cloudfront create-invalidation \
 	return nil
 }
 
-// ListObjects lists all the objects in the bucket.
+// loadIndexFromS3 reads the existing index.json from S3 for incremental updates.
+func (brs *BaselineConfig) loadIndexFromS3(svc *s3.S3) (*baselineIndex, error) {
+	resp, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(brs.bucketName),
+		Key:    aws.String(indexObjectKey),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get index object: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read index body: %w", err)
+	}
+
+	var idx baselineIndex
+	if err := json.Unmarshal(body, &idx); err != nil {
+		return nil, fmt.Errorf("failed to parse index JSON: %w", err)
+	}
+
+	// Filter out any _latest entries that may have polluted a previous index.
+	var cleaned []*baselineIndexItem
+	for _, item := range idx.Results {
+		if !strings.HasSuffix(item.Name, "_latest") {
+			cleaned = append(cleaned, item)
+		}
+	}
+	idx.Results = cleaned
+
+	return &idx, nil
+}
+
+// fetchObjectMetadata downloads a single S3 object and extracts its index metadata.
+func (brs *BaselineConfig) fetchObjectMetadata(svc *s3.S3, objectKey, name string, obj *s3.Object) (*baselineIndexItem, error) {
+	objReader, err := svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(brs.bucketName),
+		Key:    aws.String(objectKey),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object %s: %w", objectKey, err)
+	}
+	defer objReader.Body.Close()
+
+	body, err := io.ReadAll(objReader.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object data %s: %w", objectKey, err)
+	}
+
+	bd := &BaselineData{}
+	bd.SetRawData(body)
+	tags, err := bd.GetSetupTags()
+	if err != nil {
+		log.Errorf("failed to deserialize tags/metadata from summary data: %v", err)
+	}
+
+	log.Infof("Processing summary object: %s", name)
+	log.Debugf("Processing metadata: %v", tags)
+
+	openShiftRelease := strings.Split(name, "_")[0]
+	if v, ok := tags["openshiftRelease"]; ok {
+		openShiftRelease = v.(string)
+	} else {
+		log.Warnf("missing openshiftRelease tag in metadata, extracting from name: %v", openShiftRelease)
+	}
+
+	platformType := strings.Split(name, "_")[1]
+	if v, ok := tags["platformType"]; ok {
+		platformType = v.(string)
+	} else {
+		log.Warnf("missing platformType tag in metadata, extracting from name: %v", platformType)
+	}
+
+	executionDate := strings.Split(name, "_")[2]
+	if v, ok := tags["executionDate"]; ok {
+		executionDate = v.(string)
+	} else {
+		log.Warnf("missing executionDate tag in metadata, extracting from name: %v", executionDate)
+	}
+
+	return &baselineIndexItem{
+		Date:             executionDate,
+		Name:             strings.Split(name, ".json")[0],
+		Path:             objectKey,
+		Size:             fmt.Sprintf("%d", *obj.Size),
+		OpenShiftRelease: openShiftRelease,
+		PlatformType:     platformType,
+		Tags:             tags,
+	}, nil
+}
+
+// ListObjects lists all objects in the bucket, paginating through all results.
 func ListObjects(svc *s3.S3, bucketRegion, bucketName, path string) ([]*s3.Object, error) {
+	var objects []*s3.Object
 	input := &s3.ListObjectsInput{
 		Bucket: aws.String(bucketName),
 		Prefix: aws.String(path),
 	}
-	resp, err := svc.ListObjects(input)
+	err := svc.ListObjectsPages(input, func(page *s3.ListObjectsOutput, lastPage bool) bool {
+		objects = append(objects, page.Contents...)
+		return true
+	})
 	if err != nil {
 		return nil, err
 	}
-	return resp.Contents, nil
+	return objects, nil
 }
