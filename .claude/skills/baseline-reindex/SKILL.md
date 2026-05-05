@@ -67,7 +67,7 @@ OPCT_ENABLE_ADM_BASELINE="1" opct adm baseline publish --log-level=debug <artifa
 
 ## S3 bucket structure
 
-```
+```text
 opct-archive/
 ├── uploads/                              # Raw artifact archives
 │   └── *.tar.gz

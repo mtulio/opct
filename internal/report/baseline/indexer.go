@@ -187,7 +187,11 @@ func (brs *BaselineConfig) loadIndexFromS3(svc *s3.S3) (*baselineIndex, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get index object: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if cerr := resp.Body.Close(); cerr != nil {
+			log.Warnf("failed to close response body: %v", cerr)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -220,7 +224,11 @@ func (brs *BaselineConfig) fetchObjectMetadata(svc *s3.S3, objectKey, name strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to get object %s: %w", objectKey, err)
 	}
-	defer objReader.Body.Close()
+	defer func() {
+		if cerr := objReader.Body.Close(); cerr != nil {
+			log.Warnf("failed to close object body: %v", cerr)
+		}
+	}()
 
 	body, err := io.ReadAll(objReader.Body)
 	if err != nil {
@@ -237,21 +245,26 @@ func (brs *BaselineConfig) fetchObjectMetadata(svc *s3.S3, objectKey, name strin
 	log.Infof("Processing summary object: %s", name)
 	log.Debugf("Processing metadata: %v", tags)
 
-	openShiftRelease := strings.Split(name, "_")[0]
+	parts := strings.Split(name, "_")
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("malformed object name %q: expected at least 3 underscore-separated parts", name)
+	}
+
+	openShiftRelease := parts[0]
 	if v, ok := tags["openshiftRelease"]; ok {
 		openShiftRelease = v.(string)
 	} else {
 		log.Warnf("missing openshiftRelease tag in metadata, extracting from name: %v", openShiftRelease)
 	}
 
-	platformType := strings.Split(name, "_")[1]
+	platformType := parts[1]
 	if v, ok := tags["platformType"]; ok {
 		platformType = v.(string)
 	} else {
 		log.Warnf("missing platformType tag in metadata, extracting from name: %v", platformType)
 	}
 
-	executionDate := strings.Split(name, "_")[2]
+	executionDate := parts[2]
 	if v, ok := tags["executionDate"]; ok {
 		executionDate = v.(string)
 	} else {
