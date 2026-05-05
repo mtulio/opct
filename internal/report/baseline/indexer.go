@@ -53,23 +53,28 @@ func (brs *BaselineConfig) CreateBaselineIndex() error {
 		log.Warnf("Could not load existing index, performing full reindex: %v", err)
 	}
 
-	knownPaths := make(map[string]bool)
-	if existingIndex != nil {
-		for _, item := range existingIndex.Results {
-			knownPaths[item.Path] = true
-		}
+	// Build set of paths currently in S3 to prune deleted objects from the index.
+	currentPaths := make(map[string]struct{}, len(objects))
+	for _, obj := range objects {
+		currentPaths[aws.StringValue(obj.Key)] = struct{}{}
 	}
+
+	knownPaths := make(map[string]bool)
 
 	index := baselineIndex{
 		LastUpdate: time.Now().Format(time.RFC3339),
 		Latest:     make(map[string]*baselineIndexItem),
 	}
 
-	// Carry over existing results (clear IsLatest — recalculated below).
+	// Carry over existing results that still exist in S3.
 	if existingIndex != nil {
 		for _, item := range existingIndex.Results {
+			if _, ok := currentPaths[item.Path]; !ok {
+				continue
+			}
 			item.IsLatest = false
 			index.Results = append(index.Results, item)
+			knownPaths[item.Path] = true
 		}
 	}
 
@@ -251,22 +256,22 @@ func (brs *BaselineConfig) fetchObjectMetadata(svc *s3.S3, objectKey, name strin
 	}
 
 	openShiftRelease := parts[0]
-	if v, ok := tags["openshiftRelease"]; ok {
-		openShiftRelease = v.(string)
+	if v, ok := tags["openshiftRelease"].(string); ok && v != "" {
+		openShiftRelease = v
 	} else {
 		log.Warnf("missing openshiftRelease tag in metadata, extracting from name: %v", openShiftRelease)
 	}
 
 	platformType := parts[1]
-	if v, ok := tags["platformType"]; ok {
-		platformType = v.(string)
+	if v, ok := tags["platformType"].(string); ok && v != "" {
+		platformType = v
 	} else {
 		log.Warnf("missing platformType tag in metadata, extracting from name: %v", platformType)
 	}
 
 	executionDate := parts[2]
-	if v, ok := tags["executionDate"]; ok {
-		executionDate = v.(string)
+	if v, ok := tags["executionDate"].(string); ok && v != "" {
+		executionDate = v
 	} else {
 		log.Warnf("missing executionDate tag in metadata, extracting from name: %v", executionDate)
 	}
