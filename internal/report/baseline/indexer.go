@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/cloudfront"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/aws/aws-sdk-go/service/s3/s3iface"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -184,7 +185,7 @@ aws cloudfront create-invalidation \
 }
 
 // loadIndexFromS3 reads the existing index.json from S3 for incremental updates.
-func (brs *BaselineConfig) loadIndexFromS3(svc *s3.S3) (*baselineIndex, error) {
+func (brs *BaselineConfig) loadIndexFromS3(svc s3iface.S3API) (*baselineIndex, error) {
 	resp, err := svc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(brs.bucketName),
 		Key:    aws.String(indexObjectKey),
@@ -221,7 +222,7 @@ func (brs *BaselineConfig) loadIndexFromS3(svc *s3.S3) (*baselineIndex, error) {
 }
 
 // fetchObjectMetadata downloads a single S3 object and extracts its index metadata.
-func (brs *BaselineConfig) fetchObjectMetadata(svc *s3.S3, objectKey, name string, obj *s3.Object) (*baselineIndexItem, error) {
+func (brs *BaselineConfig) fetchObjectMetadata(svc s3iface.S3API, objectKey, name string, obj *s3.Object) (*baselineIndexItem, error) {
 	objReader, err := svc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(brs.bucketName),
 		Key:    aws.String(objectKey),
@@ -288,7 +289,7 @@ func (brs *BaselineConfig) fetchObjectMetadata(svc *s3.S3, objectKey, name strin
 }
 
 // ListObjects lists all objects in the bucket, paginating through all results.
-func ListObjects(svc *s3.S3, bucketRegion, bucketName, path string) ([]*s3.Object, error) {
+func ListObjects(svc s3iface.S3API, bucketRegion, bucketName, path string) ([]*s3.Object, error) {
 	var objects []*s3.Object
 	input := &s3.ListObjectsInput{
 		Bucket: aws.String(bucketName),
