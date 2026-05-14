@@ -1336,8 +1336,8 @@ The report includes a floating chat widget powered by Claude via the Anthropic S
 - `POST /api/v1/chat/sessions` — Save a session
 
 **Authentication** (auto-detected at startup):
-1. Vertex AI: `GOOGLE_CLOUD_LOCATION` + `ANTHROPIC_VERTEX_PROJECT_ID` (when `CLAUDE_CODE_USE_VERTEX=1`)
-2. Anthropic API: `ANTHROPIC_API_KEY`
+1. Vertex AI: detected when `GOOGLE_CLOUD_LOCATION` (or `CLOUD_ML_REGION`) and `ANTHROPIC_VERTEX_PROJECT_ID` (or `GOOGLE_CLOUD_PROJECT`) are set
+2. Anthropic API: detected when `ANTHROPIC_API_KEY` is set
 3. Neither set → chat disabled, UI shows setup instructions
 
 **Key design decisions**:

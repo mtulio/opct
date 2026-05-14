@@ -275,7 +275,7 @@ func (te *ToolExecutor) readTestFile(testID, suffix string) (string, error) {
 		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "failures-") {
 			continue
 		}
-		if !strings.Contains(entry.Name(), pluginPrefix) {
+		if !strings.HasPrefix(entry.Name(), "failures-"+pluginPrefix+"-") {
 			continue
 		}
 		filePath := filepath.Join(te.reportDir, entry.Name(), testID+"-"+suffix)

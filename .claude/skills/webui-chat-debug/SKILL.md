@@ -27,8 +27,9 @@ curl -s http://localhost:9090/api/v1/chat/status | python3 -m json.tool
 Expected: `{"enabled": true, "provider": "vertex"|"anthropic", "model": "claude-sonnet-4-5"}`
 
 If `enabled: false`:
-- Check env vars: `echo $CLAUDE_CODE_USE_VERTEX $GOOGLE_CLOUD_LOCATION $ANTHROPIC_VERTEX_PROJECT_ID`
-- Or: `echo $ANTHROPIC_API_KEY`
+- For Vertex AI: `echo $GOOGLE_CLOUD_LOCATION $ANTHROPIC_VERTEX_PROJECT_ID` (both must be set)
+- Fallbacks also checked: `CLOUD_ML_REGION`, `GOOGLE_CLOUD_PROJECT`
+- For Anthropic API: `echo $ANTHROPIC_API_KEY`
 
 ### 2. Test a simple chat message
 
@@ -67,7 +68,7 @@ ls ~/opct/tmp/${TEST_ID}__report/chat-sessions/
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `404 Not Found` from Vertex | Wrong model ID or region | Use alias `claude-sonnet-4-5` (not dated). Use `GOOGLE_CLOUD_LOCATION` not `CLOUD_ML_REGION=global` |
-| `enabled: false` | No API credentials detected | Set `CLAUDE_CODE_USE_VERTEX=1` + region/project OR `ANTHROPIC_API_KEY` |
+| `enabled: false` | No API credentials detected | Set `GOOGLE_CLOUD_LOCATION` + `ANTHROPIC_VERTEX_PROJECT_ID` (Vertex) OR `ANTHROPIC_API_KEY` (direct) |
 | Chat panel shows "unable to connect" | Server not running or wrong port | Start with `opct report -s <dir> <archive>` (not `--skip-server`) |
 | Tool returns empty data | Report JSON missing or malformed | Regenerate report: `rm -rf <dir> && opct report -s <dir> --skip-server <archive>` |
 

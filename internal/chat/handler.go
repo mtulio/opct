@@ -30,26 +30,30 @@ type Handler struct {
 	prompt   string
 }
 
+func vertexRegion() string {
+	if v := os.Getenv("GOOGLE_CLOUD_LOCATION"); v != "" {
+		return v
+	}
+	return os.Getenv("CLOUD_ML_REGION")
+}
+
+func vertexProjectID() string {
+	if v := os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID"); v != "" {
+		return v
+	}
+	return os.Getenv("GOOGLE_CLOUD_PROJECT")
+}
+
 func DetectConfig(reportDir string) Config {
 	cfg := Config{
 		ReportDir: reportDir,
 		Model:     defaultModel,
 	}
 
-	if os.Getenv("CLAUDE_CODE_USE_VERTEX") == "1" {
-		region := os.Getenv("GOOGLE_CLOUD_LOCATION")
-		if region == "" {
-			region = os.Getenv("CLOUD_ML_REGION")
-		}
-		projectID := os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID")
-		if projectID == "" {
-			projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
-		}
-		if region != "" && projectID != "" {
-			cfg.Enabled = true
-			cfg.Provider = "vertex"
-			return cfg
-		}
+	if region, project := vertexRegion(), vertexProjectID(); region != "" && project != "" {
+		cfg.Enabled = true
+		cfg.Provider = "vertex"
+		return cfg
 	}
 
 	if os.Getenv("ANTHROPIC_API_KEY") != "" {
@@ -74,16 +78,8 @@ func NewHandler(cfg Config) *Handler {
 
 	switch cfg.Provider {
 	case "vertex":
-		region := os.Getenv("GOOGLE_CLOUD_LOCATION")
-		if region == "" {
-			region = os.Getenv("CLOUD_ML_REGION")
-		}
-		projectID := os.Getenv("ANTHROPIC_VERTEX_PROJECT_ID")
-		if projectID == "" {
-			projectID = os.Getenv("GOOGLE_CLOUD_PROJECT")
-		}
 		client := anthropic.NewClient(
-			vertex.WithGoogleAuth(context.Background(), region, projectID),
+			vertex.WithGoogleAuth(context.Background(), vertexRegion(), vertexProjectID()),
 		)
 		h.client = &client
 	case "anthropic":
@@ -106,11 +102,13 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 
 func (h *Handler) handleStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"enabled":  h.config.Enabled,
 		"provider": h.config.Provider,
 		"model":    h.config.Model,
-	})
+	}); err != nil {
+		log.Debugf("Failed to encode status response: %v", err)
+	}
 }
 
 type ChatRequest struct {
@@ -227,7 +225,9 @@ func buildMessages(history []ChatMessage, newMessage string) []anthropic.Message
 
 func sendSSE(w http.ResponseWriter, flusher http.Flusher, event, data string) {
 	escaped := strings.ReplaceAll(data, "\n", "\\n")
-	fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, escaped)
+	if _, err := fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, escaped); err != nil {
+		log.Debugf("SSE write error: %v", err)
+	}
 	flusher.Flush()
 }
 
@@ -241,7 +241,9 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(sessions)
+		if err := json.NewEncoder(w).Encode(sessions); err != nil {
+			log.Debugf("Failed to encode sessions: %v", err)
+		}
 
 	case http.MethodPost:
 		var session Session
@@ -258,7 +260,9 @@ func (h *Handler) handleSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]string{"id": session.ID})
+		if err := json.NewEncoder(w).Encode(map[string]string{"id": session.ID}); err != nil {
+			log.Debugf("Failed to encode session ID: %v", err)
+		}
 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -281,7 +285,9 @@ func (h *Handler) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
-		json.NewEncoder(w).Encode(session)
+		if err := json.NewEncoder(w).Encode(session); err != nil {
+			log.Debugf("Failed to encode session: %v", err)
+		}
 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
