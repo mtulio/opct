@@ -1318,6 +1318,79 @@ Chart data is served as static JSON files at `./metrics/` (generated during repo
 - **Plotly is still used** by `metrics/index.html` (standalone page). Don't remove the Plotly JSON generation in the Go backend
 - **`hasMetricsData` flag**: Gate chart rendering on `this.report.summary.features.hasMetricsData` — it's `false` when must-gather metrics were not collected
 
+### Chatbot (AI Assistant) Architecture
+
+The report includes a floating chat widget powered by Claude via the Anthropic SDK.
+
+**Backend files** (`internal/chat/`):
+- `handler.go` — HTTP handlers, SSE streaming, Claude API tool-use loop
+- `tools.go` — 8 tool definitions (summary, checks, plugin results, test failure logs, etcd, network) + tool executor reading from report directory
+- `session.go` — Session CRUD with JSON persistence in `<report-dir>/chat-sessions/`
+- `prompt.go` — Built-in system prompt with file override (`<report-dir>/system.prompt.txt`)
+
+**API endpoints** (registered in `pkg/cmd/report/report.go`):
+- `GET /api/v1/chat/status` — Returns `{"enabled": bool, "provider": "vertex"|"anthropic", "model": "..."}`
+- `POST /api/v1/chat` — Send message, stream response via SSE
+- `GET /api/v1/chat/sessions` — List saved sessions
+- `GET /api/v1/chat/sessions/{id}` — Load a session
+- `POST /api/v1/chat/sessions` — Save a session
+
+**Authentication** (auto-detected at startup):
+1. Vertex AI: `GOOGLE_CLOUD_LOCATION` + `ANTHROPIC_VERTEX_PROJECT_ID` (when `CLAUDE_CODE_USE_VERTEX=1`)
+2. Anthropic API: `ANTHROPIC_API_KEY`
+3. Neither set → chat disabled, UI shows setup instructions
+
+**Key design decisions**:
+- Uses **tool use** instead of stuffing the 2MB report JSON into context — Claude calls tools to fetch specific data on demand
+- **SSE streaming** for real-time token display via `fetch()` + `ReadableStream`
+- **AbortController** for the Stop button — cancels the fetch request mid-stream
+- Tool results are read directly from the report directory filesystem
+
+**Vertex AI region priority**: Use `GOOGLE_CLOUD_LOCATION` first, then `CLOUD_ML_REGION`. The `CLOUD_ML_REGION=global` value is NOT a valid Vertex AI Anthropic endpoint — always prefer the specific region.
+
+**Model format**: Use alias form like `claude-sonnet-4-5` (not dated versions like `claude-sonnet-4-5-20250514` which may not be available in all Vertex projects).
+
+### Floating Widget Pattern
+
+The chat uses a floating widget (not a tab) so users can keep navigating all existing tabs while the chat is open.
+
+**Key behaviors**:
+- Chat bubble icon fixed bottom-right, always visible
+- Three header buttons: minimize (`—`), maximize (`□`), close (`×`)
+- Minimize/maximize use CSS classes (`chat-minimized`, `chat-maximized`) with `!important` rules — **never** toggle `display` on individual children via JS (causes partial state bugs)
+- Chat state persists in JS variables across tab navigation
+- Sessions auto-save after each assistant response
+
+**Anti-patterns learned**:
+- ❌ CSS `resize: both` — unreliable across browsers, resize handle is invisible/hard to find
+- ❌ Setting `display` on individual children for minimize — causes blank areas on restore
+- ❌ `direction: rtl` hack for resize handle position — conflicts with content layout
+- ✅ Use CSS classes with `!important` for state changes (minimize/maximize)
+- ✅ Use explicit maximize/restore buttons instead of drag-to-resize for floating panels
+
+### UI Styling Patterns
+
+**Page headline bar**: Cluster info displayed as colored badge pills (not raw text with brackets):
+```javascript
+// Pattern used in pageHeadline computed property
+headline += '<span class="headline-badge headline-ocp">OpenShift <strong>' + version + '</strong></span>'
+```
+- `.headline-ocp` — blue badge for OpenShift version
+- `.headline-k8s` — green badge for Kubernetes version
+- `.headline-platform` — amber badge for platform type
+- `.headline-archive` — gray monospace badge for archive filename on second row
+
+**Table section headers**: Use Bootstrap `<dt>` with `text-light bg-secondary` class:
+```javascript
+this.menuBody += '<dt class="text-light bg-secondary ps-1 mb-1">Section Title</dt>'
+```
+
+**Font sizes**: Chat widget uses fixed pixel sizes (not rem) to avoid inheritance issues:
+- Body text: 12px
+- Headings inside chat: 13px
+- Code/pre: 11px
+- Tables: 11px
+
 ---
 
 ## Document Maintenance
