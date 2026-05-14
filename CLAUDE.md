@@ -14,6 +14,7 @@ This document provides structured instructions for common development activities
   - [OPCT CLI Release](#opct-cli-release)
   - [Plugins Release](#plugins-release)
 - [Validation Procedures](#validation-procedures)
+- [Web UI Report Development](#web-ui-report-development)
 - [Contributing Guidelines](#contributing-guidelines)
 
 ---
@@ -1178,6 +1179,147 @@ Based on v0.6.1 experience:
 
 ---
 
+## Web UI Report Development
+
+**When to use**: Modify the OPCT web report UI (charts, tables, layout, new pages).
+
+### Architecture
+
+The report is a **Vue.js 2 single-page application** rendered as a Go template.
+
+**Key files**:
+- `data/templates/report/report.html` — Main Vue app (Go template delimiters: `[[` / `]]`)
+- `data/templates/report/report.css` — Styles
+- `internal/report/data.go` — Backend: `SaveResults()` renders templates to `<saveTo>/index.html`
+- `internal/openshift/mustgathermetrics/plotly.go` — Generates Plotly-format JSON chart data to `<saveTo>/metrics/`
+
+**CDN libraries loaded in report.html**:
+- Vue 2, Bootstrap, BootstrapVue, axios
+- Chart.js 4.4.9 + chartjs-adapter-date-fns (time-series X axes)
+- Hammer.js + chartjs-plugin-zoom (drag-to-zoom, pan)
+
+**Content rendering pattern**: Each page builds HTML strings in `this.menuBody` and renders via `v-html` directive. Data comes from `opct-report.json` (fetched by axios or embedded via Go template).
+
+### Testing Workflow
+
+```bash
+# 1. Build
+make build
+
+# 2. Generate report (--skip-server to avoid blocking)
+TEST_ID=<result-name>  # e.g., 4.20.0-0.nightly-2026-05-04-230007-20260510-HighlyAvailable-aws-External
+./build/opct-linux-amd64 report -s ~/opct/tmp/${TEST_ID}__report --skip-server ~/opct/results/${TEST_ID}.tar.gz
+
+# 3. Serve for browser testing
+python3 -m http.server 9090 --directory ~/opct/tmp/${TEST_ID}__report
+
+# 4. Open http://localhost:9090 in browser, test all pages
+```
+
+Always test:
+- The page you modified
+- At least 2-3 other pages (Summary, Checks, Network) to verify no layout regressions
+- Browser resize for responsive behavior
+
+### Split-Pane Layout Pattern
+
+Some pages (e.g., etcd) use a split-pane layout with tables on the left and charts on the right.
+
+**Critical rule**: Use `v-if`/`v-else` to conditionally render the split container — **never** use a shared container with conditional CSS classes.
+
+```html
+<!-- CORRECT: split pane only exists when menuBodyRight has content -->
+<div v-if="menuBodyRight" id="split-container" class="d-flex">
+  <div id="panel-left" class="etcd-panel-left overflow-auto">
+    <span v-html="menuBody"></span>
+  </div>
+  <div id="panel-divider" class="etcd-panel-divider"></div>
+  <div id="panel-right" class="etcd-panel-right overflow-auto">
+    <span v-html="menuBodyRight"></span>
+  </div>
+</div>
+<div v-else class="overflow-auto">
+  <span v-html="menuBody"></span>
+</div>
+```
+
+```html
+<!-- WRONG: d-flex affects all pages even when menuBodyRight is empty -->
+<div class="d-flex">
+  <div :class="menuBodyRight ? 'etcd-panel-left' : ''">
+    <span v-html="menuBody"></span>
+  </div>
+</div>
+```
+
+**Why**: The `d-flex` container changes layout behavior for ALL pages. Inline styles set by JavaScript (e.g., drag-resize) persist across page navigations. The `v-if`/`v-else` approach ensures non-split pages use the original full-width layout unchanged.
+
+**Cleanup**: `changeMenuCleanup()` must clear `menuBodyRight` AND reset any inline styles set by the drag-resize handler:
+
+```javascript
+changeMenuCleanup() {
+  this.menuTitle = '';
+  this.menuBody = '';
+  this.menuBodyRight = '';
+  var left = document.getElementById('panel-left');
+  if (left) { left.style.width = ''; left.style.minWidth = ''; }
+  var right = document.getElementById('panel-right');
+  if (right) { right.style.width = ''; right.style.minWidth = ''; }
+},
+```
+
+### Adding Charts to a Page
+
+Chart data is served as static JSON files at `./metrics/` (generated during report processing). To add charts to a page:
+
+1. **Define chart metadata** in Vue `data()`:
+   ```javascript
+   etcdCharts: [
+     { id: "etcd-chart-0", path: "./metrics/query_range-etcd-...", title: "Chart Title" },
+   ],
+   ```
+
+2. **Build canvas placeholders** in `menuBodyRight` (Chart.js uses `<canvas>`, not `<div>`):
+   ```javascript
+   this.menuBodyRight += `<div class="etcd-chart-card"><canvas id="` + chart.id + `"></canvas></div>`
+   ```
+
+3. **Render after DOM update** with `this.$nextTick(() => { this.renderCharts(); })`
+
+4. **Fetch JSON and create Chart.js instances**:
+   ```javascript
+   axios.get(chart.path).then(resp => {
+     let reply = resp.data;
+     // reply.data = [{x: [...], y: [...], name: "label", type: "scatter"}]
+     // Map Plotly format to Chart.js datasets
+     new Chart(canvas, { type: 'line', data: { datasets }, options: { ... } });
+   });
+   ```
+
+**Chart data format** (Plotly JSON, reused by Chart.js):
+- `data[].x` — timestamps as strings (e.g., `"2026-5-9 21:44:8"`, non-padded)
+- `data[].y` — float values
+- `data[].name` — series label
+- Use `parseMetricTimestamp()` for cross-browser safe date parsing
+
+**Available etcd metrics** (defined in `internal/openshift/mustgathermetrics/main.go`):
+- `query_range-etcd-disk-fsync-wal-duration-p99.json.gz`
+- `query_range-etcd-disk-fsync-db-duration-p99.json.gz`
+- `query_range-etcd-peer-round-trip-time.json.gz`
+- `query_range-etcd-total-leader-elections-day.json.gz`
+- `query_range-etcd-request-duration-p99.json.gz`
+- `query_range-api-kas-request-duration-p99.json.gz`
+
+### Common Pitfalls
+
+- **Go template conflict**: Use `[[` / `]]` for Go template delimiters, not `{{` / `}}` (conflicts with Vue)
+- **`v-html` scripts don't execute**: `<script>` tags injected via `v-html` are ignored. Use `$nextTick()` callbacks instead
+- **Chart.js needs `<canvas>`**, not `<div>` (unlike Plotly which uses `<div>`)
+- **Plotly is still used** by `metrics/index.html` (standalone page). Don't remove the Plotly JSON generation in the Go backend
+- **`hasMetricsData` flag**: Gate chart rendering on `this.report.summary.features.hasMetricsData` — it's `false` when must-gather metrics were not collected
+
+---
+
 ## Document Maintenance
 
 This document should be updated when:
@@ -1186,5 +1328,5 @@ This document should be updated when:
 - AI assistants encounter repeated questions or issues
 - Development workflows change significantly
 
-**Last Updated**: 2025-12-08
+**Last Updated**: 2026-05-14
 **Maintainer**: OPCT Development Team
