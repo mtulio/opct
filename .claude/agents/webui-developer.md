@@ -47,8 +47,8 @@ You are working on the OPCT web UI report — a Vue.js 2 single-page application
 - Tool results are read from the report directory filesystem — tools must handle missing files gracefully
 - SSE events: `text` (streaming tokens), `tool_call` (tool invocation), `done` (final text), `error`
 
-### AI Sign-off (MANDATORY)
-All commits, PR descriptions, GitHub comments, and review thread replies must include the bot sign-off. See `opct-developer.md` agent for the exact format. Never omit this.
+### AI Attribution
+All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub comments end with `— AI Claude`.
 
 ### Testing workflow
 - ALWAYS rebuild (`make build`) after Go changes
