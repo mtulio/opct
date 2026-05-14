@@ -14,6 +14,7 @@ preventing conflict with Vue/JS language. -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8/hammer.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.2.0/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@15.0.7/marked.min.js"></script>
   <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap/dist/css/bootstrap.min.css" />
   <link type="text/css" rel="stylesheet" href="https://unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.min.css" />
 
@@ -1194,12 +1195,14 @@ tar xfJ results/</span>plugins<span class="hljs-regexp">/99-openshift-artifacts-
         return platformType
       },
       pageHeadline() {
-        let openshift = "OpenShift[" + this.report.provider.version.openshift.desired +"]"
-        let k8s = "Kubernetes["+ this.report.provider.version.kubernetes +"]"
-        let platformType = "PlatformType["+ this.platformType +"]"
-        headline = "|> "+ openshift +" "+ k8s +" "+ platformType
-        headline += "<p>|> "+ this.archiveName +"</p>"
-        headline += '<hr/>'
+        let headline = '<div class="headline-bar">'
+        headline += '<span class="headline-badge headline-ocp">OpenShift <strong>' + this.report.provider.version.openshift.desired + '</strong></span>'
+        headline += '<span class="headline-badge headline-k8s">Kubernetes <strong>' + this.report.provider.version.kubernetes + '</strong></span>'
+        headline += '<span class="headline-badge headline-platform">' + this.platformType + '</span>'
+        headline += '</div>'
+        headline += '<div class="headline-bar headline-bar-secondary">'
+        headline += '<span class="headline-badge headline-archive">' + this.archiveName + '</span>'
+        headline += '</div>'
         return headline
       },
       errorCountersSuite() {
@@ -1329,7 +1332,272 @@ tar xfJ results/</span>plugins<span class="hljs-regexp">/99-openshift-artifacts-
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
   });
+
+  /* Chat widget */
+  var chatState = {
+    open: false,
+    enabled: false,
+    provider: '',
+    messages: [],
+    sessionId: '',
+    sending: false,
+  };
+
+  function toggleChat() {
+    chatState.open = !chatState.open;
+    document.getElementById('chat-panel').style.display = chatState.open ? 'flex' : 'none';
+    document.getElementById('chat-toggle').style.display = chatState.open ? 'none' : 'flex';
+    if (chatState.open && chatState.messages.length === 0) {
+      checkChatStatus();
+    }
+  }
+
+  function checkChatStatus() {
+    fetch('/api/v1/chat/status').then(r => r.json()).then(status => {
+      chatState.enabled = status.enabled;
+      chatState.provider = status.provider;
+      if (!status.enabled) {
+        appendChatMessage('assistant', 'The AI Assistant is not available. Set the **ANTHROPIC_API_KEY** environment variable (or configure Vertex AI credentials) before starting the report server.');
+      } else {
+        appendChatMessage('assistant', 'Hello! I\'m the OPCT Assistant. I can help you analyze your conformance test results.\n\nTry asking:\n- "Show the summary of this workflow"\n- "What are the critical check failures?"\n- "Analyze test failures by component"');
+        document.getElementById('chat-suggestions').style.display = 'flex';
+      }
+    }).catch(() => {
+      appendChatMessage('assistant', 'Unable to connect to the chat API. Make sure the report server is running.');
+    });
+  }
+
+  function appendChatMessage(role, content) {
+    chatState.messages.push({ role: role, content: content });
+    renderChatMessages();
+  }
+
+  function renderChatMessages() {
+    var el = document.getElementById('chat-messages');
+    var html = '';
+    for (var i = 0; i < chatState.messages.length; i++) {
+      var msg = chatState.messages[i];
+      var cls = msg.role === 'user' ? 'chat-msg-user' : 'chat-msg-assistant';
+      var rendered = msg.role === 'assistant' ? marked.parse(msg.content) : escapeHtml(msg.content);
+      html += '<div class="chat-msg ' + cls + '">' + rendered + '</div>';
+    }
+    el.innerHTML = html;
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  function sendChatMessage(text) {
+    if (chatState.sending || !chatState.enabled) return;
+    var input = document.getElementById('chat-input');
+    if (!text) text = input.value.trim();
+    if (!text) return;
+    input.value = '';
+    document.getElementById('chat-suggestions').style.display = 'none';
+
+    appendChatMessage('user', text);
+    chatState.sending = true;
+    document.getElementById('chat-send').style.display = 'none';
+    document.getElementById('chat-stop').style.display = '';
+
+    var history = chatState.messages.slice(0, -1);
+    var abortController = new AbortController();
+    chatState.abortController = abortController;
+
+    fetch('/api/v1/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: text, history: history }),
+      signal: abortController.signal,
+    }).then(response => {
+      var reader = response.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = '';
+      var assistantText = '';
+
+      function finishStream() {
+        chatState.sending = false;
+        chatState.abortController = null;
+        document.getElementById('chat-send').style.display = '';
+        document.getElementById('chat-stop').style.display = 'none';
+        autoSaveSession();
+      }
+
+      function processChunk(result) {
+        if (result.done) { finishStream(); return; }
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop();
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (line.startsWith('data: ')) {
+            var data = line.substring(6).replace(/\\n/g, '\n');
+            var eventLine = i > 0 ? lines[i-1] : '';
+            if (eventLine.startsWith('event: text')) {
+              assistantText += data;
+              updateStreamingMessage(assistantText);
+            } else if (eventLine.startsWith('event: tool_call')) {
+              try {
+                var tool = JSON.parse(data);
+                updateStreamingMessage(assistantText + '\n\n*Using tool: ' + tool.name + '...*');
+              } catch(e) {}
+            } else if (eventLine.startsWith('event: done')) {
+              if (chatState.messages[chatState.messages.length - 1].role === 'assistant') {
+                chatState.messages[chatState.messages.length - 1].content = data;
+              }
+              renderChatMessages();
+            } else if (eventLine.startsWith('event: error')) {
+              appendChatMessage('assistant', 'Error: ' + data);
+            }
+          }
+        }
+        reader.read().then(processChunk).catch(function() { finishStream(); });
+      }
+
+      chatState.messages.push({ role: 'assistant', content: '' });
+      reader.read().then(processChunk).catch(function() { finishStream(); });
+    }).catch(err => {
+      chatState.sending = false;
+      chatState.abortController = null;
+      document.getElementById('chat-send').style.display = '';
+      document.getElementById('chat-stop').style.display = 'none';
+      if (err.name !== 'AbortError') {
+        appendChatMessage('assistant', 'Error: ' + err.message);
+      }
+    });
+  }
+
+  function updateStreamingMessage(text) {
+    if (chatState.messages.length > 0 && chatState.messages[chatState.messages.length - 1].role === 'assistant') {
+      chatState.messages[chatState.messages.length - 1].content = text;
+    }
+    renderChatMessages();
+  }
+
+  function autoSaveSession() {
+    if (chatState.messages.length < 2) return;
+    fetch('/api/v1/chat/sessions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: chatState.sessionId,
+        messages: chatState.messages,
+      }),
+    }).then(r => r.json()).then(data => {
+      if (data.id) chatState.sessionId = data.id;
+      loadSessionList();
+    }).catch(() => {});
+  }
+
+  function loadSessionList() {
+    fetch('/api/v1/chat/sessions').then(r => r.json()).then(sessions => {
+      var sel = document.getElementById('chat-sessions');
+      sel.innerHTML = '<option value="">New session</option>';
+      for (var i = 0; i < sessions.length; i++) {
+        var s = sessions[i];
+        var label = s.updated ? s.updated.substring(0, 16) : s.id;
+        var selected = s.id === chatState.sessionId ? ' selected' : '';
+        sel.innerHTML += '<option value="' + s.id + '"' + selected + '>' + label + '</option>';
+      }
+    }).catch(() => {});
+  }
+
+  function loadSession(id) {
+    if (!id) {
+      chatState.messages = [];
+      chatState.sessionId = '';
+      renderChatMessages();
+      checkChatStatus();
+      return;
+    }
+    fetch('/api/v1/chat/sessions/' + id).then(r => r.json()).then(session => {
+      chatState.sessionId = session.id;
+      chatState.messages = session.messages || [];
+      renderChatMessages();
+      document.getElementById('chat-suggestions').style.display = 'none';
+    }).catch(() => {});
+  }
+
+  function minimizeChat() {
+    var panel = document.getElementById('chat-panel');
+    if (panel.classList.contains('chat-minimized')) {
+      panel.classList.remove('chat-minimized');
+    } else {
+      panel.classList.add('chat-minimized');
+    }
+  }
+
+  function maximizeChat() {
+    var panel = document.getElementById('chat-panel');
+    var btn = document.getElementById('chat-maximize-btn');
+    if (panel.classList.contains('chat-maximized')) {
+      panel.classList.remove('chat-maximized');
+      btn.innerHTML = '&#x25A1;';
+      btn.title = 'Maximize';
+    } else {
+      panel.classList.remove('chat-minimized');
+      panel.classList.add('chat-maximized');
+      btn.innerHTML = '&#x2750;';
+      btn.title = 'Restore';
+    }
+  }
+
+  function stopChat() {
+    if (chatState.abortController) {
+      chatState.abortController.abort();
+      chatState.abortController = null;
+    }
+    chatState.sending = false;
+    document.getElementById('chat-send').style.display = '';
+    document.getElementById('chat-stop').style.display = 'none';
+  }
+
+  function chatKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  }
+
+  function sendSuggestion(text) {
+    sendChatMessage(text);
+  }
 </script>
+
+<!-- Floating chat widget -->
+<div id="chat-widget">
+  <button id="chat-toggle" onclick="toggleChat()" title="AI Assistant">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+  </button>
+  <div id="chat-panel" style="display:none">
+    <div id="chat-header">
+      <span>OPCT Assistant</span>
+      <div style="display:flex;gap:4px;align-items:center">
+        <select id="chat-sessions" onchange="loadSession(this.value)" title="Chat sessions"></select>
+        <button class="chat-header-btn" onclick="minimizeChat()" title="Minimize">&#x2015;</button>
+        <button class="chat-header-btn" id="chat-maximize-btn" onclick="maximizeChat()" title="Maximize">&#x25A1;</button>
+        <button class="chat-header-btn" onclick="toggleChat()" title="Close">&times;</button>
+      </div>
+    </div>
+    <div id="chat-messages"></div>
+    <div id="chat-suggestions" style="display:none">
+      <button class="chat-suggestion" onclick="sendSuggestion('Show the summary of this conformance workflow')">Summary</button>
+      <button class="chat-suggestion" onclick="sendSuggestion('What are the critical check failures and how to fix them?')">Check failures</button>
+      <button class="chat-suggestion" onclick="sendSuggestion('Analyze test failures by component')">Test failures</button>
+      <button class="chat-suggestion" onclick="sendSuggestion('Are there any etcd performance issues?')">etcd health</button>
+    </div>
+    <div id="chat-input-area">
+      <textarea id="chat-input" placeholder="Ask about the report..." onkeydown="chatKeyDown(event)" rows="2"></textarea>
+      <button id="chat-send" onclick="sendChatMessage()">Send</button>
+      <button id="chat-stop" onclick="stopChat()" style="display:none">Stop</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
