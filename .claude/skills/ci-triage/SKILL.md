@@ -87,13 +87,10 @@ Shall I file this bug?
 
 | Field | Source |
 |-------|--------|
+| Project | OPCT (not OCPBUGS — CI failures are not OCP product bugs) |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` |
-| Release Blocker | Rejected (`customfield_10847`) |
 | Labels | splatteam, needs-refinement, needs-triage |
-| Components | OPCT / Other (id: `14860`) |
-| Parent | OPCT-400 (native `parent` field, cross-project) |
-| Affects Version | Extracted from job name (e.g., `4.22`) |
-| Security Level | Red Hat Employee |
+| Parent | OPCT-400 (same project, native hierarchy) |
 
 ## Agent definition
 

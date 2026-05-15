@@ -77,8 +77,8 @@ Classification thresholds:
 ### Step 6: Check existing Jira bugs
 
 For each real failure, check if a Jira bug already exists:
-- Use `mcp__jira__jira_search` with JQL: `project = OCPBUGS AND summary ~ "OPCT" AND summary ~ "{VERSION}" AND summary ~ "{PROVIDER}" AND status not in (Closed, Verified)`
-- Also search by labels: `project = OCPBUGS AND labels = "splatteam" AND summary ~ "{VERSION}-{PROVIDER}" AND status not in (Closed, Verified)`
+- Use `mcp__jira__jira_search` with JQL: `project in (OPCT, OCPBUGS) AND summary ~ "OPCT" AND summary ~ "{VERSION}" AND summary ~ "{PROVIDER}" AND status not in (Closed, Verified)`
+- Also search by labels: `project in (OPCT, OCPBUGS) AND labels = "splatteam" AND summary ~ "{VERSION}-{PROVIDER}" AND status not in (Closed, Verified)`
 - Optionally use skill `ci:check-if-jira-regression-is-ongoing` for broader regression checks
 
 ### Step 7: Decide and classify
@@ -95,15 +95,11 @@ For NEW_FAILURE items, prepare a bug draft using these fields. **Do NOT file aut
 
 | Field | Value | Jira Field ID |
 |-------|-------|---------------|
-| Project | OCPBUGS | `project` |
+| Project | OPCT | `project` |
 | Type | Bug | `issuetype` |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` | `summary` |
-| Release Blocker | Rejected | `customfield_10847` |
 | Labels | `splatteam`, `needs-refinement`, `needs-triage` | `labels` |
-| Components | OPCT / Other (id: `14860`) | `components` |
-| Parent | OPCT-400 | `parent` (native field, works cross-project via hierarchy) |
-| Affects Version | `{OCP VERSION}` (e.g., `4.22`) | `versions` |
-| Security Level | Red Hat Employee | `security` |
+| Parent | OPCT-400 | `parent` (same project, native hierarchy) |
 
 **Title format examples:**
 - `OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade`
@@ -197,36 +193,25 @@ When the Jira MCP server is available (registered as `jira`), use `mcp__jira__ji
 
 ```
 mcp__jira__jira_create_issue(
-    project_key="OCPBUGS",
+    project_key="OPCT",
     summary="OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}",
     issue_type="Bug",
     description="<jira wiki markup description — see template above>",
-    components="OPCT / Other",
-    additional_fields='{"versions": [{"name": "{OCP_VERSION}"}], "labels": ["splatteam", "needs-refinement", "needs-triage"], "security": {"name": "Red Hat Employee"}, "customfield_10847": {"value": "Rejected"}}'
+    additional_fields='{"labels": ["splatteam", "needs-refinement", "needs-triage"], "parent": {"key": "OPCT-400"}}'
 )
 ```
 
-After creation, set the parent link to OPCT-400 in a separate update:
-
-```
-mcp__jira__jira_update_issue(
-    issue_key="OCPBUGS-XXXXX",
-    fields='{"parent": {"key": "OPCT-400"}}'
-)
-```
-
-**Note:** The `parent` field works cross-project (OCPBUGS → OPCT) via Jira's native hierarchy.
-The `customfield_10018` (Parent Link) does NOT work cross-project — do not use it.
+**Note:** Since bugs are now filed in the OPCT project (same project as OPCT-400), the `parent` field can be set directly during creation — no separate update needed.
 
 ### Bug filing via REST API (fallback)
 
-If MCP fails, use `curl` , credentials `${JIRA_USERNAME}` and `${JIRA_API_TOKEN}` is expected to be exported :
+If MCP fails, use `curl` with credentials `${JIRA_USERNAME}` and `${JIRA_API_TOKEN}` exported:
 
 ```bash
 curl -s -X POST -H "Content-Type: application/json" \
   -u "${JIRA_USERNAME}:${JIRA_API_TOKEN}" \
   "https://redhat.atlassian.net/rest/api/2/issue" \
-  -d '{"fields": { ... }}'
+  -d '{"fields": {"project": {"key": "OPCT"}, "issuetype": {"name": "Bug"}, "summary": "...", "labels": ["splatteam", "needs-refinement", "needs-triage"], "parent": {"key": "OPCT-400"}, "description": "..."}}'
 ```
 
 **Important:** Do not use `https://issues.redhat.com` — it returns a 301 redirect that drops the POST body. Always use `https://redhat.atlassian.net` directly.
