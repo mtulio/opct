@@ -1,7 +1,7 @@
 ---
 name: ci-triage
 description: Triage an OPCT periodic CI job failure — analyze test failures, check job history, query flake rates, check existing Jira bugs, and draft new bugs for real failures.
-allowed-tools: Bash, Read, WebFetch, WebSearch
+allowed-tools: Bash, Read, WebFetch, WebSearch, Skill, mcp__jira__jira_create_issue, mcp__jira__jira_search, mcp__jira__jira_update_issue, mcp__jira__jira_get_issue
 ---
 
 # CI Triage
@@ -36,7 +36,7 @@ triage https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic
 4. **Checks job history** to find consecutive failures and first failure date
 5. **Queries flake rates** via `ci:fetch-test-report` (Sippy)
 6. **Checks existing Jira bugs** via `ci:check-if-jira-regression-is-ongoing`
-7. **Classifies each failure**: KNOWN_FLAKE, EXISTING_BUG, or NEW_FAILURE
+7. **Classifies each failure**: KNOWN_FLAKE, EXISTING_BUG, INFRA_FAILURE, or NEW_FAILURE
 8. **Drafts a Jira bug** for new failures (asks for approval before filing)
 9. **Presents a triage summary** table
 
@@ -88,11 +88,16 @@ Shall I file this bug?
 | Field | Source |
 |-------|--------|
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` |
-| Release Blocker | Rejected |
-| Labels | splatteam, needs-refinement |
-| Components | OPCT / Other |
-| Parent | OPCT-400 |
-| Affects Version | Extracted from job name |
+| Release Blocker | Rejected (`customfield_10847`) |
+| Labels | splatteam, needs-refinement, needs-triage |
+| Components | OPCT / Other (id: `14860`) |
+| Parent | OPCT-400 (native `parent` field, cross-project) |
+| Affects Version | Extracted from job name (e.g., `4.22`) |
+| Security Level | Red Hat Employee |
+
+## Agent definition
+
+See `.claude/agents/ci-triage.md` for the complete workflow specification, Jira field IDs, and MCP tool call examples.
 
 ## Marketplace skills used
 

@@ -68,76 +68,81 @@ Use `WebFetch` on the job history URL and parse the results table.
 
 ### Step 5: Check flake rates
 
-For each failed test, use skill `ci:fetch-test-report` to query Sippy pass rates.
+For each failed test, use skill `ci:fetch-test-report` to query Sippy pass rates for the OCP version extracted from the job name.
 
 Classification thresholds:
-- **Known flake**: flake rate >5% in OpenShift CI → classify as FLAKE
-- **Real failure**: flake rate <5% or test not found in Sippy → classify as REAL
+- **Known flake**: Sippy pass rate below 95% (i.e., fails ≥5% of runs) → classify as KNOWN_FLAKE
+- **Real failure**: Sippy pass rate ≥95% or test not found in Sippy → classify as REAL
 
 ### Step 6: Check existing Jira bugs
 
 For each real failure, check if a Jira bug already exists:
-- Use skill `ci:check-if-jira-regression-is-ongoing`
-- Search for bugs with title pattern `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-*`
+- Use `mcp__jira__jira_search` with JQL: `project = OCPBUGS AND summary ~ "OPCT" AND summary ~ "{VERSION}" AND summary ~ "{PROVIDER}" AND status not in (Closed, Verified)`
+- Also search by labels: `project = OCPBUGS AND labels = "splatteam" AND summary ~ "{VERSION}-{PROVIDER}" AND status not in (Closed, Verified)`
+- Optionally use skill `ci:check-if-jira-regression-is-ongoing` for broader regression checks
 
 ### Step 7: Decide and classify
 
 For each failure, assign one of:
 - **KNOWN_FLAKE**: High flake rate in CI. Note in summary, no action needed.
 - **EXISTING_BUG**: Jira bug already open. Link it in summary.
-- **NEW_FAILURE**: Real failure, no existing bug. Draft a Jira bug.
+- **INFRA_FAILURE**: Infrastructure/provisioning failure (lease timeout, VM creation error, bootstrap timeout, CI scripting error). Note in summary — file a bug only if the pattern is persistent (≥3 consecutive failures).
+- **NEW_FAILURE**: Real test failure, no existing bug. Draft a Jira bug.
 
 ### Step 8: Draft Jira bug
 
 For NEW_FAILURE items, prepare a bug draft using these fields. **Do NOT file automatically — present the draft and ask the user for approval.**
 
-| Field | Value |
-|-------|-------|
-| Project | OCPBUGS |
-| Type | Bug |
-| Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` |
-| Release Blocker | Rejected |
-| Labels | `splatteam`, `needs-refinement` |
-| Activity Type | Quality / Stability / Reliability |
-| Components | OPCT / Other |
-| Parent | OPCT-400 |
-| Affects Version | `{OCP VERSION}` |
+| Field | Value | Jira Field ID |
+|-------|-------|---------------|
+| Project | OCPBUGS | `project` |
+| Type | Bug | `issuetype` |
+| Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` | `summary` |
+| Release Blocker | Rejected | `customfield_10847` |
+| Labels | `splatteam`, `needs-refinement`, `needs-triage` | `labels` |
+| Components | OPCT / Other (id: `14860`) | `components` |
+| Parent | OPCT-400 | `parent` (native field, works cross-project via hierarchy) |
+| Affects Version | `{OCP VERSION}` (e.g., `4.22`) | `versions` |
+| Security Level | Red Hat Employee | `security` |
 
 **Title format examples:**
 - `OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade`
 - `OPCT/CI job failure: 4.22-platform-external-aws-conformance`
 
-**Description template:**
+**Description template (Jira wiki markup):**
 ```
-## CI Job Failure
+h2. CI Job Failure
 
-**Job:** {JOB_NAME}
-**Job URL:** {PROW_URL}
-**Job History:** {HISTORY_URL}
-**Failing since:** {FIRST_FAILURE_DATE}
-**Consecutive failures:** {COUNT}
+*Job:* {JOB_NAME}
+*Job URL:* {PROW_URL}
+*Job History:* {HISTORY_URL}
+*Failing since:* {FIRST_FAILURE_DATE}
+*Consecutive failures:* {COUNT}
 
-## Job Metadata
+h2. Job Metadata
 
-- OpenShift Version: {VERSION}
-- Platform Type: {PLATFORM}
-- Cloud Provider: {PROVIDER}
-- OPCT Workflow: {WORKFLOW}
+* OpenShift Version: {VERSION}
+* Platform Type: {PLATFORM}
+* Cloud Provider: {PROVIDER}
+* OPCT Workflow: {WORKFLOW}
 
-## Failed Tests
+h2. Failed Tests
 
 {LIST OF FAILED TESTS WITH ERROR SUMMARIES}
 
-## Flake Analysis
+h2. Flake Analysis
 
 {SIPPY PASS RATES FOR EACH FAILED TEST}
 
-## Root Cause Analysis
+h2. Root Cause Analysis
 
 {ANALYSIS FROM ci:prow-job-analyze-test-failure}
+
+-- AI Claude
 ```
 
-When filing, use skills `jira:create-bug` and `jira:ocpbugs` for proper formatting.
+When filing via MCP, use the `mcp__jira__jira_create_issue` tool directly (see below).
+When filing via skills, use `jira:create-bug` and `jira:ocpbugs` for proper formatting.
 
 ### Step 9: Present summary
 
@@ -150,11 +155,12 @@ Job: {PROW_URL}
 History: {HISTORY_URL}
 Status: FAILED (failing since {DATE}, {N} consecutive failures)
 
-| # | Test | Classification | Action |
-|---|------|---------------|--------|
+| # | Test / Step | Classification | Action |
+|---|------------|---------------|--------|
 | 1 | [sig-network] test name... | KNOWN_FLAKE (12% flake) | No action |
 | 2 | [sig-auth] test name... | EXISTING_BUG | OCPBUGS-1234 |
-| 3 | [sig-storage] test name... | NEW_FAILURE | Bug draft below |
+| 3 | upi-install-vsphere (pre) | INFRA_FAILURE | Bug draft below (persistent) |
+| 4 | [sig-storage] test name... | NEW_FAILURE | Bug draft below |
 
 ### Bug Draft (pending approval)
 Title: OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade
@@ -187,24 +193,44 @@ If the Jira MCP server is not configured, the agent should:
 
 ### Bug filing via MCP
 
-When MCP is available, use `mcp__atlassian__jira_create_issue` directly:
+When the Jira MCP server is available (registered as `jira`), use `mcp__jira__jira_create_issue`:
 
-```python
-mcp__atlassian__jira_create_issue(
+```
+mcp__jira__jira_create_issue(
     project_key="OCPBUGS",
     summary="OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}",
     issue_type="Bug",
-    description="<jira wiki markup description>",
-    components="OPCT",
-    additional_fields={
-        "versions": [{"name": "{OCP_VERSION}"}],
-        "labels": ["splatteam", "needs-refinement", "ai-generated-jira"],
-        "security": {"name": "Red Hat Employee"},
-        "customfield_10018": "OPCT-400",
-    }
+    description="<jira wiki markup description — see template above>",
+    components="OPCT / Other",
+    additional_fields='{"versions": [{"name": "{OCP_VERSION}"}], "labels": ["splatteam", "needs-refinement", "needs-triage"], "security": {"name": "Red Hat Employee"}, "customfield_10847": {"value": "Rejected"}}'
 )
 ```
 
+After creation, set the parent link to OPCT-400 in a separate update:
+
+```
+mcp__jira__jira_update_issue(
+    issue_key="OCPBUGS-XXXXX",
+    fields='{"parent": {"key": "OPCT-400"}}'
+)
+```
+
+**Note:** The `parent` field works cross-project (OCPBUGS → OPCT) via Jira's native hierarchy.
+The `customfield_10018` (Parent Link) does NOT work cross-project — do not use it.
+
+### Bug filing via REST API (fallback)
+
+If MCP fails, use `curl` , credentials `${JIRA_USERNAME}` and `${JIRA_API_TOKEN}` is expected to be exported :
+
+```bash
+curl -s -X POST -H "Content-Type: application/json" \
+  -u "${JIRA_USERNAME}:${JIRA_API_TOKEN}" \
+  "https://redhat.atlassian.net/rest/api/2/issue" \
+  -d '{"fields": { ... }}'
+```
+
+**Important:** Do not use `https://issues.redhat.com` — it returns a 301 redirect that drops the POST body. Always use `https://redhat.atlassian.net` directly.
+
 ## AI Attribution
 
-All GitHub interactions end with `— AI Claude`. All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`.
+See CLAUDE.md for commit and comment sign-off requirements (`Co-Authored-By` trailer on commits, `— AI Claude` on GitHub interactions).
