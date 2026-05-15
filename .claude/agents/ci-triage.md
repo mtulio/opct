@@ -161,6 +161,50 @@ Title: OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade
 ...
 ```
 
+## Prerequisites
+
+### Jira MCP Server (required for auto-filing bugs)
+
+The Jira MCP server must be configured for the agent to file bugs automatically. Set it up with:
+
+```bash
+claude mcp add \
+  -e JIRA_URL="https://redhat.atlassian.net" \
+  -e JIRA_API_TOKEN="${JIRA_API_TOKEN}" \
+  -e JIRA_USERNAME="${JIRA_USERNAME}" \
+  --transport stdio jira -- uvx mcp-atlassian
+```
+
+Get your API token at: https://id.atlassian.com/manage-profile/security/api-tokens
+
+### Fallback when MCP is not available
+
+If the Jira MCP server is not configured, the agent should:
+1. Complete the full triage (steps 1-7)
+2. Present the bug draft with all fields filled out
+3. Output the Jira URL for manual creation: `https://issues.redhat.com/secure/CreateIssue.jspa`
+4. List the exact field values so the user can copy them
+
+### Bug filing via MCP
+
+When MCP is available, use `mcp__atlassian__jira_create_issue` directly:
+
+```python
+mcp__atlassian__jira_create_issue(
+    project_key="OCPBUGS",
+    summary="OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}",
+    issue_type="Bug",
+    description="<jira wiki markup description>",
+    components="OPCT",
+    additional_fields={
+        "versions": [{"name": "{OCP_VERSION}"}],
+        "labels": ["splatteam", "needs-refinement", "ai-generated-jira"],
+        "security": {"name": "Red Hat Employee"},
+        "customfield_10018": "OPCT-400",
+    }
+)
+```
+
 ## AI Attribution
 
 All GitHub interactions end with `— AI Claude`. All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`.
