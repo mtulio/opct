@@ -48,6 +48,8 @@ History URL: https://prow.ci.openshift.org/job-history/gs/test-platform-results/
 
 Use skill `ci:fetch-prowjob-json` with the Prow job URL to get job status, timestamps, and result metadata.
 
+**Extract OPCT version from build log:** Search for `OPCT CLI: vX.Y.Z` or `quay.io/opct/opct:vX.Y.Z` in the build log. Record the version (e.g., `v0.6.4`) for labels and fixVersions. If not found, leave OPCT version blank.
+
 ### Step 3: Analyze test failures
 
 Use skill `ci:prow-job-analyze-test-failure` with the Prow job URL to identify:
@@ -98,8 +100,14 @@ For NEW_FAILURE items, prepare a bug draft using these fields. **Do NOT file aut
 | Project | OPCT | `project` |
 | Type | Bug | `issuetype` |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` | `summary` |
-| Labels | `splatteam`, `needs-refinement`, `needs-triage` | `labels` |
+| Labels | `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{OCP_VERSION}`, `opct-{OPCT_VERSION}` | `labels` |
+| Fix Version | `opct-v{OPCT_VERSION}` (e.g., `opct-v0.6.4`) | `fixVersions` |
 | Parent | OPCT-400 | `parent` (same project, native hierarchy) |
+
+**Label conventions:**
+- `openshift-{X.Y}`: OCP version from the job name (e.g., `openshift-4.17`, `openshift-4.22`)
+- `opct-{X.Y}`: OPCT CLI version from the build log (e.g., `opct-0.6`). Extract from `OPCT CLI: vX.Y.Z` in the build log. Use major.minor only. Leave blank if not found.
+- `fixVersions`: Set to the matching `opct-vX.Y.Z` version in the OPCT project. If the version does not exist, omit the field.
 
 **Title format examples:**
 - `OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade`
@@ -197,11 +205,14 @@ mcp__jira__jira_create_issue(
     summary="OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}",
     issue_type="Bug",
     description="<jira wiki markup description — see template above>",
-    additional_fields='{"labels": ["splatteam", "needs-refinement", "needs-triage"], "parent": {"key": "OPCT-400"}}'
+    additional_fields='{"labels": ["splatteam", "needs-refinement", "needs-triage", "openshift-{OCP_VERSION}", "opct-{OPCT_MAJOR_MINOR}"], "parent": {"key": "OPCT-400"}, "fixVersions": [{"name": "opct-v{OPCT_VERSION}"}]}'
 )
 ```
 
-**Note:** Since bugs are now filed in the OPCT project (same project as OPCT-400), the `parent` field can be set directly during creation — no separate update needed.
+**Notes:**
+- Replace `{OCP_VERSION}` with e.g. `4.17`, `{OPCT_MAJOR_MINOR}` with e.g. `0.6`, `{OPCT_VERSION}` with e.g. `0.6.4`
+- If the `fixVersions` value doesn't exist in the OPCT project, omit it from additional_fields to avoid an error
+- If OPCT version was not found in the build log, omit the `opct-*` label and `fixVersions`
 
 ### Bug filing via REST API (fallback)
 
@@ -211,7 +222,7 @@ If MCP fails, use `curl` with credentials `${JIRA_USERNAME}` and `${JIRA_API_TOK
 curl -s -X POST -H "Content-Type: application/json" \
   -u "${JIRA_USERNAME}:${JIRA_API_TOKEN}" \
   "https://redhat.atlassian.net/rest/api/2/issue" \
-  -d '{"fields": {"project": {"key": "OPCT"}, "issuetype": {"name": "Bug"}, "summary": "...", "labels": ["splatteam", "needs-refinement", "needs-triage"], "parent": {"key": "OPCT-400"}, "description": "..."}}'
+  -d '{"fields": {"project": {"key": "OPCT"}, "issuetype": {"name": "Bug"}, "summary": "...", "labels": ["splatteam", "needs-refinement", "needs-triage", "openshift-4.17", "opct-0.6"], "parent": {"key": "OPCT-400"}, "fixVersions": [{"name": "opct-v0.6.4"}], "description": "..."}}'
 ```
 
 **Important:** Do not use `https://issues.redhat.com` — it returns a 301 redirect that drops the POST body. Always use `https://redhat.atlassian.net` directly.

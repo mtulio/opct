@@ -89,7 +89,8 @@ Shall I file this bug?
 |-------|--------|
 | Project | OPCT (not OCPBUGS — CI failures are not OCP product bugs) |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` |
-| Labels | splatteam, needs-refinement, needs-triage |
+| Labels | `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{X.Y}`, `opct-{X.Y}` |
+| Fix Version | `opct-vX.Y.Z` (from build log `OPCT CLI: vX.Y.Z`, blank if not found) |
 | Parent | OPCT-400 (same project, native hierarchy) |
 
 ## Agent definition
