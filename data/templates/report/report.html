@@ -1357,7 +1357,7 @@ tar xfJ results/</span>plugins<span class="hljs-regexp">/99-openshift-artifacts-
       chatState.enabled = status.enabled;
       chatState.provider = status.provider;
       if (!status.enabled) {
-        appendChatMessage('assistant', 'The AI Assistant is not available. Set the **ANTHROPIC_API_KEY** environment variable (or configure Vertex AI credentials) before starting the report server.');
+        appendChatMessage('assistant', 'The AI Assistant is not available. No API credentials were detected.\n\nConfigure one of the following before starting the report server:\n\n**Option 1 — Anthropic API (direct)**\n```\nexport ANTHROPIC_API_KEY="sk-ant-..."\n```\nGet your key at [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)\n\n**Option 2 — Google Cloud Vertex AI**\n```\nexport GOOGLE_CLOUD_LOCATION="us-east5"\nexport GOOGLE_CLOUD_PROJECT="your-project-id"\ngcloud auth application-default login\n```\nSee [Vertex AI Claude docs](https://docs.anthropic.com/en/api/claude-on-vertex-ai)\n\nThen restart the report server:\n```\nopct report <archive>.tar.gz\n```');
       } else {
         appendChatMessage('assistant', 'Hello! I\'m the OPCT Assistant. I can help you analyze your conformance test results.\n\nTry asking:\n- "Show the summary of this workflow"\n- "What are the critical check failures?"\n- "Analyze test failures by component"');
         document.getElementById('chat-suggestions').style.display = 'flex';
