@@ -71,3 +71,9 @@ make vet             # run go vet
 
 See the `webui-report-test` skill for the build-regenerate-serve workflow.
 Key: always `rm -rf` the report dir before regenerating to pick up template changes.
+
+## Related Skills
+
+- **`opct-runtime`** — Plugin runtime architecture (execution order, dependency chain, timing delays). Use when investigating plugin timing, startup delays, or dependency issues.
+- **`jira-ops`** — Jira operations with MCP-first + REST API fallback. Use when filing bugs or comments.
+- **`ci-triage`** — CI job failure triage workflow. Use when investigating periodic job failures.

@@ -195,10 +195,11 @@ If the Jira MCP server is not configured, the agent should:
 3. Output the Jira URL for manual creation: `https://issues.redhat.com/secure/CreateIssue.jspa`
 4. List the exact field values so the user can copy them
 
-### Bug filing via MCP
+### Bug filing
 
-When the Jira MCP server is available (registered as `jira`), use `mcp__jira__jira_create_issue`:
+Use the `jira-ops` skill for all Jira operations (MCP-first with REST API fallback). See `.claude/skills/jira-ops/SKILL.md`.
 
+**MCP call for bug creation:**
 ```
 mcp__jira__jira_create_issue(
     project_key="OPCT",
@@ -211,21 +212,21 @@ mcp__jira__jira_create_issue(
 
 **Notes:**
 - Replace `{OCP_VERSION}` with e.g. `4.17`, `{OPCT_MAJOR_MINOR}` with e.g. `0.6`, `{OPCT_VERSION}` with e.g. `0.6.4`
-- If the `fixVersions` value doesn't exist in the OPCT project, omit it from additional_fields to avoid an error
+- If the `fixVersions` value doesn't exist in the OPCT project, omit it to avoid an error
 - If OPCT version was not found in the build log, omit the `opct-*` label and `fixVersions`
+- If MCP returns permission error, follow the REST API fallback in the `jira-ops` skill
 
-### Bug filing via REST API (fallback)
+### Linking related bugs
 
-If MCP fails, use `curl` with credentials `${JIRA_USERNAME}` and `${JIRA_API_TOKEN}` exported:
-
-```bash
-curl -s -X POST -H "Content-Type: application/json" \
-  -u "${JIRA_USERNAME}:${JIRA_API_TOKEN}" \
-  "https://redhat.atlassian.net/rest/api/2/issue" \
-  -d '{"fields": {"project": {"key": "OPCT"}, "issuetype": {"name": "Bug"}, "summary": "...", "labels": ["splatteam", "needs-refinement", "needs-triage", "openshift-4.17", "opct-0.6"], "parent": {"key": "OPCT-400"}, "fixVersions": [{"name": "opct-v0.6.4"}], "description": "..."}}'
+Use link type `"Related"` (not `"Relates"` — that returns 404):
+```
+mcp__jira__jira_create_issue_link(link_type="Related", inward_issue_key="OPCT-NEW", outward_issue_key="OPCT-EXISTING")
 ```
 
-**Important:** Do not use `https://issues.redhat.com` — it returns a 301 redirect that drops the POST body. Always use `https://redhat.atlassian.net` directly.
+## Related skills
+
+- **`jira-ops`** — Jira MCP + REST API operations (create, comment, link)
+- **`opct-runtime`** — Plugin runtime architecture for investigating timing/dependency issues
 
 ## AI Attribution
 
