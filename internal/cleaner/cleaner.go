@@ -66,6 +66,7 @@ func ScanPatchTarGzipReaderFor(r io.Reader) (resp io.Reader, size int, err error
 	var buf bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buf)
 	tarWriter := tar.NewWriter(gzipWriter)
+	var leakFindings []LeakFinding
 
 	// Process the tar headers
 	for {
@@ -77,8 +78,21 @@ func ScanPatchTarGzipReaderFor(r io.Reader) (resp io.Reader, size int, err error
 			return nil, size, fmt.Errorf("unable to process file in archive: %w", err)
 		}
 
-		if err := processTarHeader(header, tarReader, tarWriter); err != nil {
-			return nil, size, err
+		findings, procErr := processTarHeader(header, tarReader, tarWriter)
+		if procErr != nil {
+			return nil, size, procErr
+		}
+		leakFindings = append(leakFindings, findings...)
+	}
+
+	if len(leakFindings) > 0 {
+		log.Warnf("Leak scan: %d potential finding(s) detected", len(leakFindings))
+		for _, f := range leakFindings {
+			if f.Line > 0 {
+				log.Warnf("  %s:%d — %s", f.File, f.Line, f.Pattern)
+			} else {
+				log.Warnf("  %s — %s", f.File, f.Pattern)
+			}
 		}
 	}
 
@@ -96,99 +110,80 @@ func ScanPatchTarGzipReaderFor(r io.Reader) (resp io.Reader, size int, err error
 }
 
 // processTarHeader processes the tar header and applies patches or removes files as needed.
-func processTarHeader(header *tar.Header, tarReader *tar.Reader, tarWriter *tar.Writer) error {
+// Returns any leak findings detected in the file content.
+func processTarHeader(header *tar.Header, tarReader *tar.Reader, tarWriter *tar.Writer) ([]LeakFinding, error) {
 	// Processing pre-defined patches, including recursively archives inside base.
 	if _, ok := JSONPatchRules[header.Name]; ok {
-		// Once the pre-defined/hardcoded patch matches with file stream, apply
-		// the path according to the extension. Currently only JSON patches
-		// are supported.
 		log.Debugf("Patch pattern matched for: %s", header.Name)
 		if strings.HasSuffix(header.Name, ".json") {
-			var patchedFile []byte
 			desiredFile, err := io.ReadAll(tarReader)
 			if err != nil {
-				log.Errorf("Unable to read file in archive: %v", err)
-				return fmt.Errorf("unable to read file in archive: %w", err)
+				return nil, fmt.Errorf("unable to read file in archive: %w", err)
 			}
-			// Apply JSON patch to the file
-			patchedFile, err = applyJSONPatch(header.Name, desiredFile)
+			patchedFile, err := applyJSONPatch(header.Name, desiredFile)
 			if err != nil {
-				log.Errorf("Unable to apply patch to file %s: %v", header.Name, err)
-				return fmt.Errorf("unable to apply patch to file %s: %w", header.Name, err)
+				return nil, fmt.Errorf("unable to apply patch to file %s: %w", header.Name, err)
 			}
-
-			// Update the file size in the header
 			header.Size = int64(len(patchedFile))
 			log.Debugf("File %s size %d bytes", header.Name, header.Size)
-
-			// Write the updated file to stream.
 			if err := tarWriter.WriteHeader(header); err != nil {
-				log.Errorf("Unable to write file header to new archive: %v", err)
-				return fmt.Errorf("unable to write file header to new archive: %w", err)
+				return nil, fmt.Errorf("unable to write file header to new archive: %w", err)
 			}
 			if _, err := tarWriter.Write(patchedFile); err != nil {
-				log.Errorf("Unable to write file data to new archive: %v", err)
-				return fmt.Errorf("unable to write file data to new archive: %w", err)
+				return nil, fmt.Errorf("unable to write file data to new archive: %w", err)
 			}
-		} else {
-			log.Debugf("Unknown extension, skipping patch for file %s", header.Name)
+			findings := ScanContentForLeaks(header.Name, patchedFile)
+			return findings, nil
 		}
+		log.Debugf("Unknown extension, skipping patch for file %s", header.Name)
+		return nil, nil
+	}
 
-	} else if strings.HasSuffix(header.Name, ".tar.gz") {
-		// Recursively scan for .tar.gz files rewriting it back to the original archive.
-		// By default sonobuoy writes a base archive, and the result(s) will be inside of
-		// the base. So it is required to recursively scan archives to find required, hardcoded,
-		// patches.
+	if strings.HasSuffix(header.Name, ".tar.gz") {
 		log.Debugf("Scanning tarball archive: %s", header.Name)
 		resp, size, err := ScanPatchTarGzipReaderFor(tarReader)
 		if err != nil {
-			return fmt.Errorf("unable to apply patch to file %s: %w", header.Name, err)
+			return nil, fmt.Errorf("unable to apply patch to file %s: %w", header.Name, err)
 		}
-
-		// Update the file size in the header
 		header.Size = int64(size)
-
-		// Write the updated header and file content
-		buf := new(bytes.Buffer)
-		_, err = io.Copy(buf, resp)
-		if err != nil {
-			return err
+		archiveBuf := new(bytes.Buffer)
+		if _, err = io.Copy(archiveBuf, resp); err != nil {
+			return nil, err
 		}
-
-		// Write archive back to stream.
 		if err := tarWriter.WriteHeader(header); err != nil {
-			log.Errorf("Unable to write file header to new archive: %v", err)
-			return fmt.Errorf("unable to write file header to new archive: %w", err)
+			return nil, fmt.Errorf("unable to write file header to new archive: %w", err)
 		}
-		if _, err := tarWriter.Write(buf.Bytes()); err != nil {
-			log.Errorf("Unable to write file data to new archive: %v", err)
-			return fmt.Errorf("unable to write file data to new archive: %w", err)
+		if _, err := tarWriter.Write(archiveBuf.Bytes()); err != nil {
+			return nil, fmt.Errorf("unable to write file data to new archive: %w", err)
 		}
-	} else {
-		skip := false
-		for _, rule := range RemoveFilePatternRules {
-			if rule.RegexPattern.MatchString(header.Name) {
-				if rule.Count >= rule.KeepCount {
-					log.Debugf("Skipping file %s due to matching pattern rules", header.Name)
-					skip = true
-					continue
-				}
-				rule.Count += 1
+		return nil, nil
+	}
+
+	// Check removal rules
+	for _, rule := range RemoveFilePatternRules {
+		if rule.RegexPattern.MatchString(header.Name) {
+			if rule.Count >= rule.KeepCount {
+				log.Debugf("Skipping file %s due to matching pattern rules", header.Name)
+				return nil, nil
 			}
-		}
-		if skip {
-			return nil
-		}
-
-		// Do nothing: copy unmatched files as-is.
-		if err := tarWriter.WriteHeader(header); err != nil {
-			return fmt.Errorf("error streaming file header to new archive: %w", err)
-		}
-		if _, err := io.Copy(tarWriter, tarReader); err != nil {
-			return fmt.Errorf("error streaming file data to new archive: %w", err)
+			rule.Count++
 		}
 	}
-	return nil
+
+	// Read file content for leak scanning, then write to archive
+	content, err := io.ReadAll(tarReader)
+	if err != nil {
+		return nil, fmt.Errorf("error reading file data from archive: %w", err)
+	}
+	if err := tarWriter.WriteHeader(header); err != nil {
+		return nil, fmt.Errorf("error streaming file header to new archive: %w", err)
+	}
+	if _, err := tarWriter.Write(content); err != nil {
+		return nil, fmt.Errorf("error streaming file data to new archive: %w", err)
+	}
+
+	findings := ScanContentForLeaks(header.Name, content)
+	return findings, nil
 }
 
 // applyJSONPatch applies hardcoded patches to the stream, returning the cleaned file.
