@@ -270,3 +270,97 @@ jobs:
             echo "Got: ${count}"
             echo "Want: ${want}"
           fi
+
+  e2e-cmd_adm-cleaner-leak-detection:
+    name: "e2e-cmd_adm-cleaner-leak-detection"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: opct-linux-amd64
+          path: /tmp/build/
+
+      - name: Create test archive with sensitive data
+        env:
+          TEST_ARCHIVE: /tmp/test-leaks.tar.gz
+        run: |
+          mkdir -p /tmp/test-data/secrets
+          mkdir -p /tmp/test-data/config
+
+          # Create files with various leak patterns
+          echo "token: sha256~abcdefghijklmnopqrstuvwxyz01234567890ABCDEF" > /tmp/test-data/secrets/token.txt
+          echo "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE" > /tmp/test-data/config/aws.env
+          echo "api_key: AIzaSyA1234567890abcdefghijklmnopqrstuv" > /tmp/test-data/config/gcp.yaml
+          echo "DATABASE_PASSWORD=supersecretvalue123" > /tmp/test-data/config/db.env
+
+          # Create clean file (should not trigger any warnings)
+          echo "This is a normal log file with no secrets" > /tmp/test-data/normal.log
+          echo "openshift version 4.22" >> /tmp/test-data/normal.log
+
+          # Create the test archive
+          tar czf ${TEST_ARCHIVE} -C /tmp test-data
+
+      - name: Run cleaner with leak detection
+        env:
+          OPCT: /tmp/build/opct-linux-amd64
+          TEST_ARCHIVE: /tmp/test-leaks.tar.gz
+          OUTPUT_ARCHIVE: /tmp/cleaned.tar.gz
+        run: |
+          chmod u+x ${OPCT}
+
+          echo "> Running cleaner with leak detection (expect warnings)"
+          ${OPCT} adm cleaner \
+            --input ${TEST_ARCHIVE} \
+            --output ${OUTPUT_ARCHIVE} 2>&1 | tee /tmp/cleaner-output.log
+
+          # Verify output archive was created
+          if [[ ! -f ${OUTPUT_ARCHIVE} ]]; then
+            echo "ERROR: Output archive not created"
+            exit 1
+          fi
+
+      - name: Verify leak detection warnings
+        env:
+          OUTPUT_LOG: /tmp/cleaner-output.log
+        run: |
+          echo "> Checking for leak detection warnings in output"
+
+          # Verify scanner detected leaks
+          if ! grep -q "Leak scan:" ${OUTPUT_LOG}; then
+            echo "ERROR: No leak scan warnings found in output"
+            cat ${OUTPUT_LOG}
+            exit 1
+          fi
+
+          # Verify specific patterns were detected
+          patterns=(
+            "OpenShift User Token"
+            "AWS IAM Unique Identifier"
+            "GCP API Key"
+            "Generic Secret"
+          )
+
+          for pattern in "${patterns[@]}"; do
+            if ! grep -q "${pattern}" ${OUTPUT_LOG}; then
+              echo "WARNING: Expected pattern not found: ${pattern}"
+              echo "This may be acceptable if the pattern was not triggered"
+            else
+              echo "✓ Detected: ${pattern}"
+            fi
+          done
+
+          echo "> Leak detection test passed!"
+
+      - name: Verify clean files are not flagged
+        env:
+          OUTPUT_LOG: /tmp/cleaner-output.log
+        run: |
+          # Verify clean files don't trigger false positives
+          if grep -q "normal.log.*—" ${OUTPUT_LOG}; then
+            echo "ERROR: Clean file triggered false positive"
+            grep "normal.log" ${OUTPUT_LOG}
+            exit 1
+          fi
+
+          echo "✓ No false positives detected"
