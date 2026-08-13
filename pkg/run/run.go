@@ -739,11 +739,14 @@ func (r *RunOptions) setSuiteName(cli *client.Client, configMapData map[string]s
 }
 
 // resolveKubernetesSuiteName returns the Kubernetes conformance suite name
-// based on the OCP major.minor version. OCP 4.20+ (and any major > 4) use
-// the parallel sub-suite via k8s-tests-ext; older versions use the serial suite.
+// that includes the Conformance label filter for the given OCP version.
+// 4.20 uses kubernetes/conformance/parallel/minimal because the umbrella suite
+// (k8s#2708) has not been backported there yet. All other versions use
+// kubernetes/conformance: built into openshift-tests on ≤4.19, and available
+// via k8s-tests-ext (OTE) on 4.21+.
 func resolveKubernetesSuiteName(major, minor int) string {
-	if major > 4 || (major == 4 && minor >= 20) {
-		return "kubernetes/conformance/parallel"
+	if major == 4 && minor == 20 {
+		return "kubernetes/conformance/parallel/minimal"
 	}
 	return "kubernetes/conformance"
 }
