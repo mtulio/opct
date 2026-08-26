@@ -31,26 +31,28 @@ There are two modes depending on what you're testing:
 **With chat API (use when testing chatbot or full integration):**
 ```bash
 TEST_ID=4.20.0-0.nightly-2026-05-04-230007-20260510-HighlyAvailable-aws-External
+REPORT_DIR=~/opct/tmp/${TEST_ID}__report
 
 # Kill previous server
 pkill -f "opct-linux-amd64 report" 2>/dev/null; sleep 1
 
 # Generate and serve (Go HTTP server — serves both static files and chat API)
-rm -rf ~/opct/tmp/${TEST_ID}__report
-./build/opct-linux-amd64 report -s ~/opct/tmp/${TEST_ID}__report ~/opct/results/${TEST_ID}.tar.gz
+rm -rf "${REPORT_DIR:?}"
+./build/opct-linux-amd64 report -s "${REPORT_DIR}" ~/opct/results/${TEST_ID}.tar.gz
 ```
 
 **Without chat API (use for pure frontend/layout changes):**
 ```bash
 TEST_ID=4.20.0-0.nightly-2026-05-04-230007-20260510-HighlyAvailable-aws-External
+REPORT_DIR=~/opct/tmp/${TEST_ID}__report
 
 # Generate only
-rm -rf ~/opct/tmp/${TEST_ID}__report
-./build/opct-linux-amd64 report -s ~/opct/tmp/${TEST_ID}__report --skip-server ~/opct/results/${TEST_ID}.tar.gz
+rm -rf "${REPORT_DIR:?}"
+./build/opct-linux-amd64 report -s "${REPORT_DIR}" --skip-server ~/opct/results/${TEST_ID}.tar.gz
 
 # Serve with python (lightweight, no chat API)
 pkill -f "python3 -m http.server 9090" 2>/dev/null; sleep 0.5
-python3 -m http.server 9090 --directory ~/opct/tmp/${TEST_ID}__report
+python3 -m http.server 9090 --directory "${REPORT_DIR}"
 ```
 
 ### 3. Test in browser
@@ -83,4 +85,4 @@ Open http://localhost:9090 and verify:
 - The Go server is REQUIRED for chat API — python server only serves static files
 - Chat requires Vertex AI or Anthropic API credentials (see CLAUDE.md for env vars)
 - Report generation takes ~15 seconds for the test archive
-- Always `rm -rf` the report dir before regenerating to pick up template changes
+- Always clear the report dir before regenerating to pick up template changes: `rm -rf "${REPORT_DIR:?}"`

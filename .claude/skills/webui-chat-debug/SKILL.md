@@ -27,9 +27,16 @@ curl -s http://localhost:9090/api/v1/chat/status | python3 -m json.tool
 Expected: `{"enabled": true, "provider": "vertex"|"anthropic", "model": "claude-sonnet-4-5"}`
 
 If `enabled: false`:
-- For Vertex AI: `echo $GOOGLE_CLOUD_LOCATION $ANTHROPIC_VERTEX_PROJECT_ID` (both must be set)
+- For Vertex AI: check `GOOGLE_CLOUD_LOCATION` and `ANTHROPIC_VERTEX_PROJECT_ID` (both must be set)
 - Fallbacks also checked: `CLOUD_ML_REGION`, `GOOGLE_CLOUD_PROJECT`
-- For Anthropic API: `echo $ANTHROPIC_API_KEY`
+- For Anthropic API: check `ANTHROPIC_API_KEY`
+
+```bash
+# Existence checks only — never echo secret values
+[ -n "$GOOGLE_CLOUD_LOCATION" ] && echo "GOOGLE_CLOUD_LOCATION: set" || echo "GOOGLE_CLOUD_LOCATION: unset"
+[ -n "$ANTHROPIC_VERTEX_PROJECT_ID" ] && echo "ANTHROPIC_VERTEX_PROJECT_ID: set" || echo "ANTHROPIC_VERTEX_PROJECT_ID: unset"
+[ -n "$ANTHROPIC_API_KEY" ] && echo "ANTHROPIC_API_KEY: set" || echo "ANTHROPIC_API_KEY: unset"
+```
 
 ### 2. Test a simple chat message
 
@@ -70,7 +77,7 @@ ls ~/opct/tmp/${TEST_ID}__report/chat-sessions/
 | `404 Not Found` from Vertex | Wrong model ID or region | Use alias `claude-sonnet-4-5` (not dated). Use `GOOGLE_CLOUD_LOCATION` not `CLOUD_ML_REGION=global` |
 | `enabled: false` | No API credentials detected | Set `GOOGLE_CLOUD_LOCATION` + `ANTHROPIC_VERTEX_PROJECT_ID` (Vertex) OR `ANTHROPIC_API_KEY` (direct) |
 | Chat panel shows "unable to connect" | Server not running or wrong port | Start with `opct report -s <dir> <archive>` (not `--skip-server`) |
-| Tool returns empty data | Report JSON missing or malformed | Regenerate report: `rm -rf <dir> && opct report -s <dir> --skip-server <archive>` |
+| Tool returns empty data | Report JSON missing or malformed | Regenerate report: `rm -rf "${REPORT_DIR:?}"/* && opct report -s "${REPORT_DIR}" --skip-server <archive>` |
 
 ## Key files
 

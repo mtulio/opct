@@ -39,6 +39,8 @@ make vet             # run go vet
 
 **GitHub interactions** (PR descriptions, comments, review replies): append `— AI Claude` at the end.
 
+**Jira comments** (via Claude Code): append `— AI Claude` at the end. The Chai Bot VCSP persona uses its own built-in attribution — see CLAUDE.md "AI Agent Ecosystem".
+
 ### Error Handling
 - Use `fmt.Errorf("context: %w", err)` for wrapping
 - Check error returns on `json.Encode`, `fmt.Fprintf`, and similar I/O calls
@@ -71,7 +73,11 @@ make vet             # run go vet
 ## Testing OPCT Report Changes
 
 See the `webui-report-test` skill for the build-regenerate-serve workflow.
-Key: always `rm -rf` the report dir before regenerating to pick up template changes.
+Key: always clear the report dir before regenerating to pick up template changes:
+```bash
+REPORT_DIR=~/opct/tmp/${TEST_ID}__report
+rm -rf "${REPORT_DIR:?}"/*
+```
 
 ## Related Skills
 

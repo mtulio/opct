@@ -52,7 +52,12 @@ All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub
 
 ### Testing workflow
 - ALWAYS rebuild (`make build`) after Go changes
-- ALWAYS regenerate report (`rm -rf <dir> && opct report -s <dir> ...`) after template changes
+- ALWAYS regenerate report after template changes (use an explicit path variable):
+  ```bash
+  REPORT_DIR=~/opct/tmp/${TEST_ID}__report
+  rm -rf "${REPORT_DIR:?}"/*
+  opct report -s "${REPORT_DIR}" --skip-server <archive>
+  ```
 - Test chat with Go server (not python) — python can't serve the API endpoints
 - Check at least 3 pages (Summary, Checks, etcd) after any layout change
 
@@ -74,15 +79,17 @@ All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub
 
 | Library | Version | Purpose |
 |---------|---------|---------|
-| Vue.js | 2.x | Frontend framework |
-| Bootstrap | latest | Layout and components |
-| BootstrapVue | latest | Vue Bootstrap components |
-| axios | latest | HTTP client |
+| Vue.js | 2.7.16 | Frontend framework |
+| Bootstrap | 4.6.2 | Layout and components |
+| BootstrapVue | 2.23.1 | Vue Bootstrap components |
+| axios | 1.7.9 | HTTP client |
 | Chart.js | 4.4.9 | Charts (etcd page) |
 | chartjs-adapter-date-fns | 3.0.0 | Time-series X axis |
 | Hammer.js | 2.0.8 | Touch gestures for zoom |
 | chartjs-plugin-zoom | 2.2.0 | Drag-to-zoom, pan |
 | marked.js | 15.0.7 | Markdown rendering (chat) |
+
+**Always pin CDN URLs to specific versions** (e.g., `vue@2.7.16`, not `vue@2` or `@latest`). The main report template currently uses unpinned URLs — when modifying CDN references, pin to the versions above for reproducible UI behavior.
 
 ## Common Tasks
 

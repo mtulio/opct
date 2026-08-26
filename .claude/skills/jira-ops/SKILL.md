@@ -12,6 +12,8 @@ Shared operational knowledge for Jira interactions in the OPCT project. Used by 
 
 Always try MCP tools first. If MCP returns a permission error, fall back to REST API via `curl`.
 
+**Human approval required**: Always present a bug draft and get explicit user confirmation before creating issues — MCP provides the filing mechanism, not automatic filing.
+
 ## Creating issues
 
 **MCP (try first):**
@@ -33,7 +35,7 @@ curl -s -X POST -H "Content-Type: application/json" \
   -d '{"fields": {"project": {"key": "OPCT"}, "issuetype": {"name": "Bug"}, ...}}'
 ```
 
-If credentials are not exported, ask the user where their Jira credentials file is located.
+**Credentials**: Require `JIRA_USERNAME` and `JIRA_API_TOKEN` environment variables. If not set, tell the user to export them before invoking this skill — do not ask for credential file paths.
 
 ## Adding comments
 

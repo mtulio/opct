@@ -14,7 +14,7 @@ You are reviewing pull requests for the OPCT project. Your job is to check code 
 ### Project Conventions
 - [ ] Commit messages follow Conventional Commits (`feat:`, `fix:`, `docs:`, etc.)
 - [ ] AI sign-off present on all AI-generated commits and comments
-- [ ] Branch naming follows convention (`feature/`, `fix/`, `dev/`)
+- [ ] Branch naming follows convention (`OPCT-NNN-<description>`, `feature/`, `fix/`, `dev/`, or `review-`)
 - [ ] No unnecessary dependencies added
 
 ### Web UI Changes (if applicable)

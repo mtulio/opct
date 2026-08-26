@@ -79,17 +79,19 @@ Classification thresholds:
 ### Step 6: Check existing Jira bugs
 
 For each real failure, check if a Jira bug already exists:
-- Use `mcp__jira__jira_search` with JQL: `project in (OPCT, OCPBUGS) AND summary ~ "OPCT" AND summary ~ "{VERSION}" AND summary ~ "{PROVIDER}" AND status not in (Closed, Verified)`
-- Also search by labels: `project in (OPCT, OCPBUGS) AND labels = "splatteam" AND summary ~ "{VERSION}-{PROVIDER}" AND status not in (Closed, Verified)`
+- Use `mcp__jira__jira_search` with JQL scoped to the appropriate project (see [Jira Project Routing](#jira-project-routing) below)
+- Search OPCT: `project = OPCT AND summary ~ "OPCT" AND summary ~ "{VERSION}" AND summary ~ "{PROVIDER}" AND status not in (Closed, Verified)`
+- Search OCPBUGS (upstream platform bugs only): `project = OCPBUGS AND summary ~ "{TEST_NAME}" AND summary ~ "{VERSION}" AND status not in (Closed, Verified)`
+- Also search by labels: `project = OPCT AND labels = "splatteam" AND summary ~ "{VERSION}-{PROVIDER}" AND status not in (Closed, Verified)`
 - Optionally use skill `ci:check-if-jira-regression-is-ongoing` for broader regression checks
 
 ### Step 7: Decide and classify
 
 For each failure, assign one of:
-- **KNOWN_FLAKE**: High flake rate in CI. Note in summary, no action needed.
+- **KNOWN_FLAKE**: High flake rate in CI. Note in summary, no action needed. May still be relevant to VCSP validation rules if pass ratios are affected (see CLAUDE.md "AI Agent Ecosystem").
 - **EXISTING_BUG**: Jira bug already open. Link it in summary.
-- **INFRA_FAILURE**: Infrastructure/provisioning failure (lease timeout, VM creation error, bootstrap timeout, CI scripting error). Note in summary — file a bug only if the pattern is persistent (≥3 consecutive failures).
-- **NEW_FAILURE**: Real test failure, no existing bug. Draft a Jira bug.
+- **INFRA_FAILURE**: Infrastructure/provisioning failure (lease timeout, VM creation error, bootstrap timeout, CI scripting error). Note in summary — file a bug only if the pattern is persistent (≥3 consecutive failures). Route to **OPCT**.
+- **NEW_FAILURE**: Real test failure, no existing bug. Draft a Jira bug. Route to **OPCT** for OPCT/CI issues, or **OCPBUGS** for upstream OCP platform bugs (see [Jira Project Routing](#jira-project-routing)).
 
 ### Step 8: Draft Jira bug
 
@@ -97,7 +99,7 @@ For NEW_FAILURE items, prepare a bug draft using these fields. **Do NOT file aut
 
 | Field | Value | Jira Field ID |
 |-------|-------|---------------|
-| Project | OPCT | `project` |
+| Project | OPCT (default) or OCPBUGS (upstream OCP platform bugs only) | `project` |
 | Type | Bug | `issuetype` |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` | `summary` |
 | Labels | `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{OCP_VERSION}`, `opct-{OPCT_VERSION}` | `labels` |
@@ -145,8 +147,9 @@ h2. Root Cause Analysis
 -- AI Claude
 ```
 
-When filing via MCP, use the `mcp__jira__jira_create_issue` tool directly (see below).
-When filing via skills, use `jira:create-bug` and `jira:ocpbugs` for proper formatting.
+When filing via MCP, use the `mcp__jira__jira_create_issue` tool directly (see below). **Always present the draft and get user approval before calling MCP.**
+
+When filing via skills, use `jira:create-bug` for OPCT project bugs. Use `jira:ocpbugs` only when the failure is an upstream OCP platform issue.
 
 ### Step 9: Present summary
 
@@ -173,9 +176,9 @@ Title: OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade
 
 ## Prerequisites
 
-### Jira MCP Server (required for auto-filing bugs)
+### Jira MCP Server (mechanism for filing bugs — user approval always required)
 
-The Jira MCP server must be configured for the agent to file bugs automatically. Set it up with:
+The Jira MCP server provides the API mechanism for filing bugs after the user approves a draft. It does **not** enable automatic filing — Step 8 always requires explicit user confirmation.
 
 ```bash
 claude mcp add \
@@ -216,6 +219,17 @@ mcp__jira__jira_create_issue(
 - If OPCT version was not found in the build log, omit the `opct-*` label and `fixVersions`
 - If MCP returns permission error, follow the REST API fallback in the `jira-ops` skill
 
+### Jira project routing
+
+| Failure type | Project | Notes |
+|--------------|---------|-------|
+| OPCT tool bug (CLI, plugins, report) | **OPCT** | Parent: OPCT-400 |
+| OPCT CI infrastructure failure | **OPCT** | Lease timeout, test harness errors |
+| Upstream OCP platform bug | **OCPBUGS** | Kubernetes/OpenShift core test failures unrelated to OPCT tooling |
+| Certification review finding | **OPCT** | Validation rule violations (OPCT-001–OPCT-040) |
+
+**Default for CI triage**: **OPCT**. Only use **OCPBUGS** when the root cause is clearly in upstream OpenShift, not OPCT.
+
 ### Linking related bugs
 
 Use link type `"Related"` (not `"Relates"` — that returns 404):
@@ -230,4 +244,4 @@ mcp__jira__jira_create_issue_link(link_type="Related", inward_issue_key="OPCT-NE
 
 ## AI Attribution
 
-See CLAUDE.md for commit and comment sign-off requirements (`Co-Authored-By` trailer on commits, `— AI Claude` on GitHub interactions).
+See CLAUDE.md for commit and comment sign-off requirements (`Co-Authored-By` trailer on commits, `— AI Claude` on GitHub interactions). For Jira comments via this agent, append `— AI Claude`. The Chai Bot VCSP persona uses its own attribution — see CLAUDE.md "AI Agent Ecosystem".

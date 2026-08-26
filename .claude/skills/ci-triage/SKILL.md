@@ -71,7 +71,7 @@ Status: FAILED (failing since 2026-03-15, 12 consecutive failures)
 
 ### Bug Draft (pending approval)
 Title: OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade
-Project: OCPBUGS
+Project: OPCT
 ...
 
 Shall I file this bug?
@@ -87,11 +87,22 @@ Shall I file this bug?
 
 | Field | Source |
 |-------|--------|
-| Project | OPCT (not OCPBUGS — CI failures are not OCP product bugs) |
+| Project | **OPCT** (default for CI triage). Use **OCPBUGS** only for upstream OCP platform bugs discovered during OPCT runs |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` |
 | Labels | `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{X.Y}`, `opct-{X.Y}` |
 | Fix Version | `opct-vX.Y.Z` (from build log `OPCT CLI: vX.Y.Z`, blank if not found) |
-| Parent | OPCT-400 (same project, native hierarchy) |
+| Parent | OPCT-400 (OPCT project only, native hierarchy) |
+
+### Jira project routing
+
+| Failure type | Project |
+|--------------|---------|
+| OPCT tool bug (CLI, plugins, report UI) | **OPCT** |
+| OPCT CI infrastructure failure | **OPCT** |
+| Upstream OCP platform bug found during OPCT runs | **OCPBUGS** |
+| Certification review finding | **OPCT** |
+
+See CLAUDE.md "AI Agent Ecosystem" for how CI triage classifications map to VCSP persona validation rules.
 
 ## Agent definition
 
@@ -104,4 +115,5 @@ See `.claude/agents/ci-triage.md` for the complete workflow specification, Jira 
 - `ci:prow-job-analyze-install-failure` — install failure analysis (if applicable)
 - `ci:fetch-test-report` — Sippy flake rates
 - `ci:check-if-jira-regression-is-ongoing` — existing bug check
-- `jira:create-bug` + `jira:ocpbugs` — bug creation
+- `jira:create-bug` — OPCT project bug creation
+- `jira:ocpbugs` — OCPBUGS project (upstream OCP platform bugs only)
