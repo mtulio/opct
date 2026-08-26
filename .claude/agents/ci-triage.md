@@ -95,7 +95,7 @@ For each failure, assign one of:
 
 ### Step 8: Draft Jira bug
 
-For NEW_FAILURE items, prepare a bug draft using project-specific fields below. **Do NOT file automatically — present the draft and ask the user for approval.**
+For NEW_FAILURE items, and persistent INFRA_FAILURE items (≥3 consecutive failures), prepare a bug draft using project-specific fields below. **Do NOT file automatically — present the draft and ask the user for approval.**
 
 #### OPCT project (default)
 
@@ -104,8 +104,8 @@ For NEW_FAILURE items, prepare a bug draft using project-specific fields below. 
 | Project | OPCT | `project` |
 | Type | Bug | `issuetype` |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` | `summary` |
-| Labels | `opct`, `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{OCP_VERSION}`, `opct-{OPCT_VERSION}` | `labels` |
-| Fix Version | `opct-v{OPCT_VERSION}` (e.g., `opct-v0.6.4`) | `fixVersions` |
+| Labels | `opct`, `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{OCP_VERSION}`, `opct-{OPCT_MAJOR_MINOR}` | `labels` |
+| Fix Version | `opct-v{OPCT_VERSION}` (e.g., `opct-v0.6.4`) — omit if OPCT version not found in build log | `fixVersions` |
 | Parent | OPCT-400 | `parent` |
 
 #### OCPBUGS project (upstream OCP platform bugs only)
@@ -232,6 +232,8 @@ mcp__jira__jira_create_issue(
     additional_fields='{"labels": ["opct", "splatteam", "needs-refinement", "needs-triage", "openshift-{OCP_VERSION}", "opct-{OPCT_MAJOR_MINOR}"], "parent": {"key": "OPCT-400"}, "fixVersions": [{"name": "opct-v{OPCT_VERSION}"}]}'
 )
 ```
+
+When OPCT version is unavailable from the build log, omit `opct-{OPCT_MAJOR_MINOR}` from `labels` and omit `fixVersions` from `additional_fields`.
 
 **MCP call for OCPBUGS bug creation (upstream platform bugs only):**
 ```

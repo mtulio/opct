@@ -91,8 +91,8 @@ Shall I file this bug?
 |-------|--------|
 | Project | **OPCT** |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` |
-| Labels | `opct`, `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{X.Y}`, `opct-{X.Y}` |
-| Fix Version | `opct-vX.Y.Z` (from build log `OPCT CLI: vX.Y.Z`, blank if not found) |
+| Labels | `opct`, `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{X.Y}`, `opct-{X.Y}` (omit `opct-{X.Y}` if OPCT version not found in build log) |
+| Fix Version | `opct-vX.Y.Z` (from build log `OPCT CLI: vX.Y.Z` — omit if not found) |
 | Parent | OPCT-400 |
 
 ### OCPBUGS project (upstream OCP platform bugs only)
