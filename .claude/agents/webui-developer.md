@@ -1,6 +1,8 @@
 # Web UI Developer Agent
 
-You are working on the OPCT web UI report — a Vue.js 2 single-page application that displays OpenShift conformance test results. The report is served by a Go HTTP server with both static file serving and a Claude-powered chat API.
+You are working on the OPCT web UI report — a Vue.js 2 single-page application that displays OpenShift conformance test results. The report is served by a Go HTTP server on port 9090.
+
+> **Note:** The AI chat widget and `internal/chat/` backend are experimental and tracked in [PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213). They are not on `main` yet — skip chat-specific tasks unless working on that branch.
 
 ## Architecture Overview
 
@@ -9,19 +11,16 @@ You are working on the OPCT web UI report — a Vue.js 2 single-page application
 - **Styles**: `data/templates/report/report.css`
 - **Framework**: Vue.js 2 (CDN), Bootstrap (CDN), axios (CDN)
 - **Charts**: Chart.js 4.x + chartjs-plugin-zoom (CDN)
-- **Markdown**: marked.js (CDN) — used by the chat widget
 
 ### Backend
 - **Report server**: `pkg/cmd/report/report.go` — Go HTTP server on port 9090
-- **Chat API**: `internal/chat/` — Claude API integration with tool use and SSE streaming
 - **Data generation**: `internal/report/data.go` — renders templates, produces `opct-report.json`
 - **Metrics**: `internal/openshift/mustgathermetrics/` — generates Plotly-format JSON chart data
 
 ### Data flow
 1. `opct report -s <dir> <archive>` extracts results, generates JSON, renders HTML templates
-2. Go HTTP server serves `<dir>/` as static files + mounts `/api/v1/chat/*` handlers
+2. Go HTTP server serves `<dir>/` as static files
 3. Vue app fetches `opct-report.json` via axios, renders pages via `v-html` into `menuBody`
-4. Chat widget uses `fetch()` with SSE streaming to `/api/v1/chat`
 
 ## Critical Rules
 
@@ -36,17 +35,6 @@ You are working on the OPCT web UI report — a Vue.js 2 single-page application
 - Chart.js needs `<canvas>` elements (not `<div>`)
 - Always clean up state in `changeMenuCleanup()` when adding new data properties
 
-### Floating widget states
-- Use CSS classes with `!important` for state changes (minimize/maximize)
-- NEVER toggle `display` on individual children via JS — causes partial blank states
-- Three states: normal (default CSS), minimized (`chat-minimized` class), maximized (`chat-maximized` class)
-
-### Chat backend
-- Vertex AI: prefer `GOOGLE_CLOUD_LOCATION` over `CLOUD_ML_REGION` (which may be `global`)
-- Model IDs: use alias form like `claude-sonnet-4-5` (not dated versions)
-- Tool results are read from the report directory filesystem — tools must handle missing files gracefully
-- SSE events: `text` (streaming tokens), `tool_call` (tool invocation), `done` (final text), `error`
-
 ### AI Attribution
 All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub comments end with `— AI Claude`.
 
@@ -54,11 +42,19 @@ All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub
 - ALWAYS rebuild (`make build`) after Go changes
 - ALWAYS regenerate report after template changes (use an explicit path variable):
   ```bash
+  TEST_ID=<your-test-archive-id>
   REPORT_DIR=~/opct/tmp/${TEST_ID}__report
-  rm -rf "${REPORT_DIR:?}"/*
+  REPORT_ROOT="${HOME}/opct/tmp"
+  REAL_DIR="$(realpath -m "${REPORT_DIR}")"
+  case "${REAL_DIR}" in
+    "${REPORT_ROOT}"/*) ;;
+    *) echo "refusing to delete outside ${REPORT_ROOT}: ${REAL_DIR}" >&2; exit 1 ;;
+  esac
+  [ -L "${REPORT_DIR}" ] && { echo "refusing to delete symlink: ${REPORT_DIR}" >&2; exit 1; }
+  rm -rf "${REPORT_DIR:?}"
   opct report -s "${REPORT_DIR}" --skip-server <archive>
   ```
-- Test chat with Go server (not python) — python can't serve the API endpoints
+- Test with `python3 -m http.server` or the Go server (see `webui-report-test` skill)
 - Check at least 3 pages (Summary, Checks, etcd) after any layout change
 
 ## File Reference
@@ -66,12 +62,8 @@ All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub
 | Area | File | Purpose |
 |------|------|---------|
 | Frontend | `data/templates/report/report.html` | Vue.js SPA template (~1600 lines) |
-| Styles | `data/templates/report/report.css` | All CSS including split-pane, charts, chat widget |
-| Report server | `pkg/cmd/report/report.go` | CLI command, HTTP server setup, chat route registration |
-| Chat handler | `internal/chat/handler.go` | HTTP handlers, SSE streaming, Claude API loop |
-| Chat tools | `internal/chat/tools.go` | Tool definitions and execution against report data |
-| Chat sessions | `internal/chat/session.go` | Session CRUD, JSON persistence |
-| Chat prompt | `internal/chat/prompt.go` | System prompt with file override |
+| Styles | `data/templates/report/report.css` | All CSS including split-pane, charts |
+| Report server | `pkg/cmd/report/report.go` | CLI command, HTTP server setup |
 | Report data | `internal/report/data.go` | Report struct, template rendering, JSON serialization |
 | Metrics gen | `internal/openshift/mustgathermetrics/plotly.go` | Plotly JSON chart data generation |
 
@@ -87,7 +79,7 @@ All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub
 | chartjs-adapter-date-fns | 3.0.0 | Time-series X axis |
 | Hammer.js | 2.0.8 | Touch gestures for zoom |
 | chartjs-plugin-zoom | 2.2.0 | Drag-to-zoom, pan |
-| marked.js | 15.0.7 | Markdown rendering (chat) |
+| marked.js | 15.0.7 | Markdown rendering (chat — PR #213) |
 
 **Always pin CDN URLs to specific versions** (e.g., `vue@2.7.16`, not `vue@2` or `@latest`). The main report template currently uses unpinned URLs — when modifying CDN references, pin to the versions above for reproducible UI behavior.
 
@@ -106,13 +98,29 @@ All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub
 4. Create Chart.js instance with `responsive: true`
 5. Map Plotly JSON format (`data[].x`, `data[].y`, `data[].name`) to Chart.js datasets
 
-### Add a new chat tool
+## Experimental: Chat API (PR #213 only)
+
+When working on the chat feature branch ([PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213)):
+
+### Additional files
+| Area | File | Purpose |
+|------|------|---------|
+| Chat handler | `internal/chat/handler.go` | HTTP handlers, SSE streaming, Claude API loop |
+| Chat tools | `internal/chat/tools.go` | Tool definitions and execution against report data |
+| Chat sessions | `internal/chat/session.go` | Session CRUD, JSON persistence |
+| Chat prompt | `internal/chat/prompt.go` | System prompt with file override |
+
+### Chat backend rules
+- Vertex AI: prefer `GOOGLE_CLOUD_LOCATION` over `CLOUD_ML_REGION` (which may be `global`)
+- Model IDs: use alias form like `claude-sonnet-4-5` (not dated versions)
+- Tool results are read from the report directory filesystem — tools must handle missing files gracefully
+- SSE events: `text` (streaming tokens), `tool_call` (tool invocation), `done` (final text), `error`
+- Floating widget states: use CSS classes with `!important` for minimize/maximize — never toggle `display` on individual children via JS
+- Test chat with Go server (not python) — python can't serve the API endpoints
+
+### Add a new chat tool (PR #213)
 1. Add tool definition in `internal/chat/tools.go` `ToolDefinitions()` function
 2. Add input struct if needed (with jsonschema tags)
 3. Add case in `Execute()` switch
 4. Implement the execution method reading from `te.reportDir`
 5. Tool results are returned as JSON strings to Claude
-
-### Modify the chat system prompt
-1. Edit `DefaultSystemPrompt` in `internal/chat/prompt.go`
-2. Or place a `system.prompt.txt` file in the report directory for override

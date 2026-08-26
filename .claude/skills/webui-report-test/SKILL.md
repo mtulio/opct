@@ -1,6 +1,6 @@
 ---
 name: webui-report-test
-description: Build, regenerate, and serve the OPCT web UI report for browser testing. Use when modifying report.html, report.css, chat backend, or any template/chart changes.
+description: Build, regenerate, and serve the OPCT web UI report for browser testing. Use when modifying report.html, report.css, or any template/chart changes.
 allowed-tools: Bash, Read
 ---
 
@@ -13,8 +13,8 @@ Build the project, regenerate the report from a test archive, and serve it for b
 - After modifying `data/templates/report/report.html` or `report.css`
 - After changing report data generation in `internal/report/data.go`
 - After changing metrics generation in `internal/openshift/mustgathermetrics/`
-- After changing chat backend in `internal/chat/`
-- When testing any web UI layout, chart, chatbot, or table changes
+- When testing any web UI layout, chart, or table changes
+- Chat API testing: only when [PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213) is merged or checked out locally
 
 ## Workflow
 
@@ -26,33 +26,37 @@ make build
 
 ### 2. Generate report and serve
 
-There are two modes depending on what you're testing:
+Set up paths and validate before any destructive cleanup:
 
-**With chat API (use when testing chatbot or full integration):**
 ```bash
 TEST_ID=4.20.0-0.nightly-2026-05-04-230007-20260510-HighlyAvailable-aws-External
 REPORT_DIR=~/opct/tmp/${TEST_ID}__report
-
-# Kill previous server
-pkill -f "opct-linux-amd64 report" 2>/dev/null; sleep 1
-
-# Generate and serve (Go HTTP server — serves both static files and chat API)
-rm -rf "${REPORT_DIR:?}"
-./build/opct-linux-amd64 report -s "${REPORT_DIR}" ~/opct/results/${TEST_ID}.tar.gz
+REPORT_ROOT="${HOME}/opct/tmp"
+REAL_DIR="$(realpath -m "${REPORT_DIR}")"
+case "${REAL_DIR}" in
+  "${REPORT_ROOT}"/*) ;;
+  *) echo "refusing to delete outside ${REPORT_ROOT}: ${REAL_DIR}" >&2; exit 1 ;;
+esac
+[ -L "${REPORT_DIR}" ] && { echo "refusing to delete symlink: ${REPORT_DIR}" >&2; exit 1; }
 ```
 
-**Without chat API (use for pure frontend/layout changes):**
+**Default (frontend/layout changes — no chat API):**
 ```bash
-TEST_ID=4.20.0-0.nightly-2026-05-04-230007-20260510-HighlyAvailable-aws-External
-REPORT_DIR=~/opct/tmp/${TEST_ID}__report
-
-# Generate only
 rm -rf "${REPORT_DIR:?}"
 ./build/opct-linux-amd64 report -s "${REPORT_DIR}" --skip-server ~/opct/results/${TEST_ID}.tar.gz
 
-# Serve with python (lightweight, no chat API)
 pkill -f "python3 -m http.server 9090" 2>/dev/null; sleep 0.5
 python3 -m http.server 9090 --directory "${REPORT_DIR}"
+```
+
+**With chat API (PR #213 only — Go server blocks if run in foreground):**
+```bash
+pkill -f "opct-linux-amd64 report" 2>/dev/null; sleep 1
+rm -rf "${REPORT_DIR:?}"
+REPORT_LOG="/tmp/opct-report-${TEST_ID}.log"
+./build/opct-linux-amd64 report -s "${REPORT_DIR}" ~/opct/results/${TEST_ID}.tar.gz \
+  > "${REPORT_LOG}" 2>&1 &
+echo "Report server PID: $! (logs: ${REPORT_LOG})"
 ```
 
 ### 3. Test in browser
@@ -68,7 +72,10 @@ Open http://localhost:9090 and verify:
 - Charts load and are interactive (zoom, expand)
 - etcd split-pane layout works, divider is draggable
 
-**For chatbot changes:**
+**For layout changes (headline, tables):**
+- Verify styling on ALL pages that use `pageHeadline` (Summary, Checks, etcd, Network, Runtime, etc.)
+
+**For chatbot changes (PR #213 only):**
 - Chat bubble appears in bottom-right
 - `/api/v1/chat/status` returns enabled status
 - Streaming responses work
@@ -76,13 +83,10 @@ Open http://localhost:9090 and verify:
 - Stop button cancels mid-stream responses
 - Sessions auto-save and load correctly
 
-**For layout changes (headline, tables):**
-- Verify styling on ALL pages that use `pageHeadline` (Summary, Checks, etcd, Network, Runtime, etc.)
-
 ## Important notes
 
-- The Go server (`opct report` without `--skip-server`) blocks the terminal — run in background
-- The Go server is REQUIRED for chat API — python server only serves static files
-- Chat requires Vertex AI or Anthropic API credentials (see CLAUDE.md for env vars)
+- The Go server (`opct report` without `--skip-server`) blocks the terminal — always run it in background (see above) or use a second terminal
+- Python server only serves static files — no chat API
+- Chat requires [PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213) merged plus Vertex AI or Anthropic API credentials (see CLAUDE.md)
 - Report generation takes ~15 seconds for the test archive
-- Always clear the report dir before regenerating to pick up template changes: `rm -rf "${REPORT_DIR:?}"`
+- Always validate `REPORT_DIR` is under `~/opct/tmp` and not a symlink before `rm -rf`
