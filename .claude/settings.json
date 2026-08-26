@@ -8,6 +8,8 @@
     }
   },
   "enabledPlugins": {
-    "git@ai-helpers": true
+    "git@openshift-ai-helpers": true,
+    "ci@openshift-ai-helpers": true,
+    "jira@openshift-ai-helpers": true
   }
 }
