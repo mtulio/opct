@@ -11,8 +11,13 @@ Rapid validation workflow for testing OPCT changes on a live OpenShift cluster.
 ## Prerequisites
 
 - `KUBECONFIG` environment variable set to a valid cluster
-- Cluster must have `opct` namespace (created by `opct adm setup`)
-- Sufficient cluster permissions (cluster-admin recommended)
+- Cluster-admin or sufficient permissions to manage the `opct` namespace
+- Dedicated compute node configured:
+  ```bash
+  opct adm e2e-dedicated taint-node --yes
+  ```
+  Automatically selects the best worker node and applies the required label and `NoSchedule` taint.
+- `gh` CLI installed (only when checking out PR branches via `gh pr checkout`)
 
 ## Quick Test Command
 
@@ -29,12 +34,14 @@ make build-linux-amd64; ./build/opct-linux-amd64 destroy; ./build/opct-linux-amd
 
 **Expected runtime:** ~5-10 minutes (vs. hours for full conformance)
 
+**Note:** `-w` blocks the terminal until the run completes. Open a second terminal for `watch`/`oc` commands below, or omit `-w` and poll with `opct status`.
+
 ## Development Workflow
 
 ### Testing a PR branch locally
 
 ```bash
-# 1. Fetch and checkout PR branch
+# 1. Fetch and checkout PR branch (requires gh CLI)
 gh pr checkout 214  # or: git fetch origin pull/214/head:pr-214 && git checkout pr-214
 
 # 2. Quick validate
@@ -42,8 +49,7 @@ make build-linux-amd64
 ./build/opct-linux-amd64 destroy
 ./build/opct-linux-amd64 run -w --dev-count=1
 
-# 3. Monitor plugin progress
-# In another terminal:
+# 3. Monitor plugin progress (in another terminal, or remove -w from the run command):
 watch -n 5 'oc get pods -n opct'
 
 # 4. Check for specific issues (e.g., cache-init errors)
@@ -99,6 +105,7 @@ oc get pods -n opct -l sonobuoy-component=plugin -o jsonpath='{range .items[*]}{
 | `ImagePullBackOff` | `oc describe pod <pod>` | Verify image references in templates |
 | Pods stuck in `Pending` | `oc describe pod <pod>` | Check node resources, taints/tolerations |
 | `destroy` fails with "not found" | Expected if no prior run | Safe to ignore, continue with `run` |
+| No dedicated node | `oc get nodes -l node-role.kubernetes.io/worker` | Run `opct adm e2e-dedicated taint-node --yes` |
 
 ## Full Test vs. Quick Test
 
