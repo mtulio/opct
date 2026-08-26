@@ -1027,12 +1027,13 @@ OPCT uses two complementary AI systems for different stages of the SDLC. They sh
 |-------|----------|---------|
 | Agents | `.claude/agents/` | Specialized workflows (CI triage, PR review, web UI dev, general development) |
 | Skills | `.claude/skills/` | Reusable step-by-step procedures invoked by agents |
+| Marketplace config | `.claude/settings.json` | Enables `openshift-eng/ai-helpers` plugins (`ci:*`, `jira:*` skills) |
 
 **Handles**:
 - Building, testing, and validating code changes (`go-validate`, `e2e-quick-test`)
 - CI periodic job failure triage (`ci-triage`)
 - PR review and code quality checks (`pr-reviewer`)
-- Web UI report and chatbot development (`webui-developer`, `webui-report-test`)
+- Web UI report development (`webui-developer`, `webui-report-test`)
 - Jira operations for OPCT project issues (`jira-ops`)
 
 ### Chai Bot VCSP Persona (`vcsp_certops`)
@@ -1130,17 +1131,20 @@ fix: correct error handling in baseline reporting
 All AI-generated content must be attributed for traceability.
 
 **Git commits** — include the co-author trailer:
-```
+
+```text
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 **GitHub interactions** (PR descriptions, comments, review replies) — append at the end:
-```
+
+```text
 — AI Claude
 ```
 
 **Jira comments** (via Claude Code agents or skills) — append at the end:
-```
+
+```text
 — AI Claude
 ```
 
@@ -1407,6 +1411,8 @@ Chart data is served as static JSON files at `./metrics/` (generated during repo
 - **`hasMetricsData` flag**: Gate chart rendering on `this.report.summary.features.hasMetricsData` — it's `false` when must-gather metrics were not collected
 
 ### Chatbot (AI Assistant) Architecture
+
+> **Experimental:** The chat widget and `internal/chat/` backend are in development — see [PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213). The guidance below applies when that feature is merged.
 
 The report includes a floating chat widget powered by Claude via the Anthropic SDK.
 
