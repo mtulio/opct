@@ -95,18 +95,34 @@ For each failure, assign one of:
 
 ### Step 8: Draft Jira bug
 
-For NEW_FAILURE items, prepare a bug draft using these fields. **Do NOT file automatically — present the draft and ask the user for approval.**
+For NEW_FAILURE items, prepare a bug draft using project-specific fields below. **Do NOT file automatically — present the draft and ask the user for approval.**
+
+#### OPCT project (default)
 
 | Field | Value | Jira Field ID |
 |-------|-------|---------------|
-| Project | OPCT (default) or OCPBUGS (upstream OCP platform bugs only) | `project` |
+| Project | OPCT | `project` |
 | Type | Bug | `issuetype` |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` | `summary` |
-| Labels | `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{OCP_VERSION}`, `opct-{OPCT_VERSION}` | `labels` |
+| Labels | `opct`, `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{OCP_VERSION}`, `opct-{OPCT_VERSION}` | `labels` |
 | Fix Version | `opct-v{OPCT_VERSION}` (e.g., `opct-v0.6.4`) | `fixVersions` |
-| Parent | OPCT-400 | `parent` (same project, native hierarchy) |
+| Parent | OPCT-400 | `parent` |
 
-**Label conventions:**
+#### OCPBUGS project (upstream OCP platform bugs only)
+
+| Field | Value | Jira Field ID |
+|-------|-------|---------------|
+| Project | OCPBUGS | `project` |
+| Type | Bug | `issuetype` |
+| Title | `{FAILED_TEST_NAME} fails on OCP {VERSION} ({PROVIDER})` | `summary` |
+| Labels | `openshift-{OCP_VERSION}` (add sig/component labels if known) | `labels` |
+| Fix Version | OCP version if known (e.g., `4.22`) — omit if unsure | `fixVersions` |
+| Parent | *(none — do not set OPCT-400)* | — |
+
+**Do not** apply OPCT-only fields (`opct`, `opct-*` labels, `opct-v*` fixVersions, parent OPCT-400) to OCPBUGS issues.
+
+**Label conventions (OPCT only):**
+- `opct`: filter label for OPCT Jira dashboards
 - `openshift-{X.Y}`: OCP version from the job name (e.g., `openshift-4.17`, `openshift-4.22`)
 - `opct-{X.Y}`: OPCT CLI version from the build log (e.g., `opct-0.6`). Extract from `OPCT CLI: vX.Y.Z` in the build log. Use major.minor only. Leave blank if not found.
 - `fixVersions`: Set to the matching `opct-vX.Y.Z` version in the OPCT project. If the version does not exist, omit the field.
@@ -144,7 +160,7 @@ h2. Root Cause Analysis
 
 {ANALYSIS FROM ci:prow-job-analyze-test-failure}
 
--- AI Claude
+— AI Claude
 ```
 
 When filing via MCP, use the `mcp__jira__jira_create_issue` tool directly (see below). **Always present the draft and get user approval before calling MCP.**
@@ -176,6 +192,10 @@ Title: OPCT/CI job failure: 4.18-platform-none-vsphere-upgrade
 
 ## Prerequisites
 
+### Claude Code marketplace (required for CI triage skills)
+
+The `ci:*` and `jira:*` marketplace skills require `.claude/settings.json` with the `openshift-eng/ai-helpers` marketplace enabled. This file is committed in the repository — verify it exists before triaging.
+
 ### Jira MCP Server (mechanism for filing bugs — user approval always required)
 
 The Jira MCP server provides the API mechanism for filing bugs after the user approves a draft. It does **not** enable automatic filing — Step 8 always requires explicit user confirmation.
@@ -202,21 +222,34 @@ If the Jira MCP server is not configured, the agent should:
 
 Use the `jira-ops` skill for all Jira operations (MCP-first with REST API fallback). See `.claude/skills/jira-ops/SKILL.md`.
 
-**MCP call for bug creation:**
+**MCP call for OPCT bug creation:**
 ```
 mcp__jira__jira_create_issue(
     project_key="OPCT",
     summary="OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}",
     issue_type="Bug",
     description="<jira wiki markup description — see template above>",
-    additional_fields='{"labels": ["splatteam", "needs-refinement", "needs-triage", "openshift-{OCP_VERSION}", "opct-{OPCT_MAJOR_MINOR}"], "parent": {"key": "OPCT-400"}, "fixVersions": [{"name": "opct-v{OPCT_VERSION}"}]}'
+    additional_fields='{"labels": ["opct", "splatteam", "needs-refinement", "needs-triage", "openshift-{OCP_VERSION}", "opct-{OPCT_MAJOR_MINOR}"], "parent": {"key": "OPCT-400"}, "fixVersions": [{"name": "opct-v{OPCT_VERSION}"}]}'
+)
+```
+
+**MCP call for OCPBUGS bug creation (upstream platform bugs only):**
+```
+mcp__jira__jira_create_issue(
+    project_key="OCPBUGS",
+    summary="{FAILED_TEST_NAME} fails on OCP {VERSION} ({PROVIDER})",
+    issue_type="Bug",
+    description="<jira wiki markup description — include Prow URL and flake analysis>",
+    additional_fields='{"labels": ["openshift-{OCP_VERSION}"]}'
 )
 ```
 
 **Notes:**
+- Use the OPCT MCP call for CI/tooling failures; use the OCPBUGS call only when the root cause is upstream OpenShift
 - Replace `{OCP_VERSION}` with e.g. `4.17`, `{OPCT_MAJOR_MINOR}` with e.g. `0.6`, `{OPCT_VERSION}` with e.g. `0.6.4`
 - If the `fixVersions` value doesn't exist in the OPCT project, omit it to avoid an error
 - If OPCT version was not found in the build log, omit the `opct-*` label and `fixVersions`
+- For OCPBUGS: never set parent OPCT-400, `opct` label, or `opct-v*` fixVersions
 - If MCP returns permission error, follow the REST API fallback in the `jira-ops` skill
 
 ### Jira project routing

@@ -28,7 +28,7 @@ Or shorter:
 triage https://prow.ci.openshift.org/view/gs/test-platform-results/logs/periodic-ci-openshift-release-main-nightly-4.22-opct-platform-external-aws/2053264314218844160
 ```
 
-## What the agent does
+## What this skill does
 
 1. **Parses metadata** from the job URL (OCP version, platform, provider, workflow)
 2. **Fetches job details** via `ci:fetch-prowjob-json`
@@ -85,13 +85,27 @@ Shall I file this bug?
 
 ## Jira bug fields (auto-populated)
 
+### OPCT project (default)
+
 | Field | Source |
 |-------|--------|
-| Project | **OPCT** (default for CI triage). Use **OCPBUGS** only for upstream OCP platform bugs discovered during OPCT runs |
+| Project | **OPCT** |
 | Title | `OPCT/CI job failure: {VERSION}-{PLATFORM}-{PROVIDER}-{WORKFLOW}` |
-| Labels | `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{X.Y}`, `opct-{X.Y}` |
+| Labels | `opct`, `splatteam`, `needs-refinement`, `needs-triage`, `openshift-{X.Y}`, `opct-{X.Y}` |
 | Fix Version | `opct-vX.Y.Z` (from build log `OPCT CLI: vX.Y.Z`, blank if not found) |
-| Parent | OPCT-400 (OPCT project only, native hierarchy) |
+| Parent | OPCT-400 |
+
+### OCPBUGS project (upstream OCP platform bugs only)
+
+| Field | Source |
+|-------|--------|
+| Project | **OCPBUGS** |
+| Title | `{FAILED_TEST_NAME} fails on OCP {VERSION} ({PROVIDER})` |
+| Labels | `openshift-{X.Y}` (+ sig/component labels if known) |
+| Fix Version | OCP version if known — omit if unsure |
+| Parent | *(none — do not use OPCT-400)* |
+
+Do not apply OPCT-only labels (`opct`, `opct-*`), fixVersions (`opct-v*`), or parent OPCT-400 to OCPBUGS issues.
 
 ### Jira project routing
 
