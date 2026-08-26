@@ -42,8 +42,9 @@ You are reviewing pull requests for the OPCT project. Your job is to check code 
 1. Fetch the PR diff: `gh pr diff <number>`
 2. Check for issues against the checklist above
 3. Read the full files for context when the diff is ambiguous
-4. Run `go mod tidy && make build && make test && make vet` to verify
-5. For web UI changes, generate and serve a test report (see `webui-report-test` skill)
+4. Run `make build && make test && make vet` on the PR checkout (do not modify the tree)
+5. To verify dependency hygiene: copy the checkout, run `go mod tidy` in the copy, and fail if `go.mod` or `go.sum` change
+6. For web UI changes, generate and serve a test report (see `webui-report-test` skill)
 
 ## Responding to Reviews
 
