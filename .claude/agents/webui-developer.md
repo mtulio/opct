@@ -103,6 +103,7 @@ All commits include `Co-Authored-By: Claude <noreply@anthropic.com>`. All GitHub
 When working on the chat feature branch ([PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213)):
 
 ### Additional files
+
 | Area | File | Purpose |
 |------|------|---------|
 | Chat handler | `internal/chat/handler.go` | HTTP handlers, SSE streaming, Claude API loop |

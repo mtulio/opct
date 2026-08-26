@@ -1412,7 +1412,7 @@ Chart data is served as static JSON files at `./metrics/` (generated during repo
 
 ### Chatbot (AI Assistant) Architecture
 
-> **Experimental:** The chat widget and `internal/chat/` backend are in development — see [PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213). The guidance below applies when that feature is merged.
+> **Experimental:** The chat widget and `internal/chat/` backend are in development — see [PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213). The guidance below applies when that feature is merged or checked out locally.
 
 The report includes a floating chat widget powered by Claude via the Anthropic SDK.
 
