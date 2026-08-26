@@ -10,13 +10,14 @@ Rapid validation workflow for testing OPCT changes on a live OpenShift cluster.
 
 ## Prerequisites
 
+- `oc` CLI installed and configured (same cluster as `KUBECONFIG`)
 - `KUBECONFIG` environment variable set to a valid cluster
-- Cluster-admin or sufficient permissions to manage the `opct` namespace
-- Dedicated compute node configured:
+- Permissions to manage the `opct` namespace and read cluster events
+- Dedicated compute node configured (requires cluster-scoped node permissions):
   ```bash
   opct adm e2e-dedicated taint-node --yes
   ```
-  Automatically selects the best worker node and applies the required label and `NoSchedule` taint.
+  Lists worker `Node` resources cluster-wide and applies the required label and `NoSchedule` taint. Requires permission to `get`/`list`/`patch` nodes — **cluster-admin recommended**.
 - `gh` CLI installed (only when checking out PR branches via `gh pr checkout`)
 
 ## Quick Test Command
@@ -42,7 +43,7 @@ make build-linux-amd64; ./build/opct-linux-amd64 destroy; ./build/opct-linux-amd
 
 ```bash
 # 1. Fetch and checkout PR branch (requires gh CLI)
-gh pr checkout 214  # or: git fetch origin pull/214/head:pr-214 && git checkout pr-214
+gh pr checkout ${PR_NUMBER}  # or: git fetch origin pull/${PR_NUMBER}/head:pr-${PR_NUMBER} && git checkout pr-${PR_NUMBER}
 
 # 2. Quick validate
 make build-linux-amd64
