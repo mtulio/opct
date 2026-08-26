@@ -26,7 +26,7 @@ You are reviewing pull requests for the OPCT project. Your job is to check code 
 - [ ] Other pages tested for layout regressions
 - [ ] Font sizes in chat widget use fixed px (not rem)
 
-### Chat Backend Changes (if applicable)
+### Chat Backend Changes (if applicable — PR #213 only)
 - [ ] Vertex AI detection uses `GOOGLE_CLOUD_LOCATION` (preferred), `CLOUD_ML_REGION` (fallback)
 - [ ] Model IDs use alias form (`claude-sonnet-4-5`, not dated versions)
 - [ ] Tool results handle missing files gracefully
@@ -42,7 +42,7 @@ You are reviewing pull requests for the OPCT project. Your job is to check code 
 1. Fetch the PR diff: `gh pr diff <number>`
 2. Check for issues against the checklist above
 3. Read the full files for context when the diff is ambiguous
-4. Run `make build && make test && make vet` to verify
+4. Run `go mod tidy && make build && make test && make vet` to verify
 5. For web UI changes, generate and serve a test report (see `webui-report-test` skill)
 
 ## Responding to Reviews

@@ -30,7 +30,7 @@ make test
 # 4. Run vet
 make vet
 
-# 5. Optional: lint (may have pre-existing YAML issues)
+# 5. Lint
 make test-lint
 ```
 
@@ -39,13 +39,13 @@ make test-lint
 - `make build`: produces `build/opct-linux-amd64`
 - `make test`: all packages pass (currently ~10 packages)
 - `make vet`: no output (clean)
-- `make test-lint`: Go code should pass; YAML workflow issues are acceptable if unrelated
+- `make test-lint`: Go code should pass; if YAML workflow lint fails, verify each failure predates your change — do not ignore failures in modified workflow files
 
 ## Common issues
 
 | Issue | Fix |
 |-------|-----|
-| `no required module provides package` | Run `go get <package>@latest` then `go mod tidy` |
+| `no required module provides package` | Add with an explicit version aligned to `go.mod` (e.g., `go get example.com/pkg@v1.2.3`), then `go mod tidy` |
 | `toolchain` directive in go.mod | Remove it — causes CI compatibility issues |
 | Import cycle | Check `internal/` vs `pkg/` boundaries |
 | `go.sum` mismatch | Delete `go.sum` and run `go mod tidy` to regenerate |

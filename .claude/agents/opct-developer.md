@@ -23,9 +23,10 @@ go mod tidy          # resolve dependencies
 make build           # build binary to build/opct-linux-amd64
 make test            # run unit tests
 make vet             # run go vet
+make test-lint       # lint (YAML workflows + Go)
 ```
 
-`make test-lint` may show pre-existing YAML lint issues — that's OK if unrelated to your changes.
+If `make test-lint` fails, verify that each failure predates your change. Do not ignore failures in modified workflow files.
 
 ## Key Conventions
 
@@ -76,6 +77,13 @@ See the `webui-report-test` skill for the build-regenerate-serve workflow.
 Key: always clear the report dir before regenerating to pick up template changes:
 ```bash
 REPORT_DIR=~/opct/tmp/${TEST_ID}__report
+REPORT_ROOT="${HOME}/opct/tmp"
+REAL_DIR="$(realpath -m "${REPORT_DIR}")"
+case "${REAL_DIR}" in
+  "${REPORT_ROOT}"/*) ;;
+  *) echo "refusing to delete outside ${REPORT_ROOT}: ${REAL_DIR}" >&2; exit 1 ;;
+esac
+[ -L "${REPORT_DIR}" ] && { echo "refusing to delete symlink: ${REPORT_DIR}" >&2; exit 1; }
 rm -rf "${REPORT_DIR:?}"/*
 ```
 
