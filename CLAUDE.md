@@ -14,6 +14,8 @@ This document provides structured instructions for common development activities
   - [OPCT CLI Release](#opct-cli-release)
   - [Plugins Release](#plugins-release)
 - [Validation Procedures](#validation-procedures)
+- [Web UI Report Development](#web-ui-report-development)
+- [AI Agent Ecosystem](#ai-agent-ecosystem)
 - [Contributing Guidelines](#contributing-guidelines)
 
 ---
@@ -1013,6 +1015,82 @@ FAIL	github.com/redhat-openshift-ecosystem/opct/internal/opct/summary [build fai
 
 ---
 
+## AI Agent Ecosystem
+
+OPCT uses two complementary AI systems for different stages of the SDLC. They share domain knowledge but operate in distinct contexts — avoid duplicating work across both.
+
+### Claude Code Agents and Skills (this repository)
+
+**Scope**: Local developer workflows on the OPCT codebase and CI infrastructure.
+
+| Asset | Location | Purpose |
+|-------|----------|---------|
+| Agents | `.claude/agents/` | Specialized workflows (CI triage, PR review, web UI dev, general development) |
+| Skills | `.claude/skills/` | Reusable step-by-step procedures invoked by agents |
+| Marketplace config | `.claude/settings.json` | Enables `openshift-eng/ai-helpers` plugins (`ci:*`, `jira:*` skills) |
+
+**Handles**:
+- Building, testing, and validating code changes (`go-validate`, `e2e-quick-test`)
+- CI periodic job failure triage (`ci-triage`)
+- PR review and code quality checks (`pr-reviewer`)
+- Web UI report development (`webui-developer`, `webui-report-test`)
+- Jira operations for OPCT project issues (`jira-ops`)
+
+### Chai Bot VCSP Persona (`vcsp_certops`)
+
+**Scope**: OPCT certification review and partner validation.
+
+**Handles**:
+- OPCT archive structure validation
+- Test result analysis against validation rules (OPCT-001 through OPCT-040)
+- Sippy flake data cross-referencing
+- Root cause investigation of certification failures
+- Structured pass/fail/review-needed verdicts
+- Jira routing for certification-related issues
+
+See `docs/review/rules.md` for the full validation rule catalog.
+
+### Boundary: When to Use Which
+
+| Task | Use |
+|------|-----|
+| Fix a bug in OPCT CLI or report UI | Claude Code (`opct-developer`) |
+| Triage a failing periodic CI job | Claude Code (`ci-triage`) |
+| Review a pull request | Claude Code (`pr-reviewer`) |
+| Validate a partner OPCT archive for certification | Chai Bot VCSP persona |
+| Analyze conformance test failures in a submitted archive | Chai Bot VCSP persona |
+| Produce certification approve/reject recommendation | Chai Bot VCSP persona |
+
+### CI Triage ↔ VCSP Persona Integration
+
+The `ci-triage` agent classifies periodic CI failures. These classifications map to how the VCSP persona evaluates certification outcomes:
+
+| CI Triage Classification | VCSP Persona Context |
+|--------------------------|---------------------|
+| `KNOWN_FLAKE` | Test has high flake rate in Sippy — not a certification blocker unless it violates an OPCT validation rule threshold (e.g., OPCT-004 pass ratio) |
+| `EXISTING_BUG` | Link to the open Jira issue; VCSP persona may reference the same bug in certification review |
+| `INFRA_FAILURE` | CI infrastructure issue (lease timeout, VM provisioning) — not a product or certification failure |
+| `NEW_FAILURE` | Real test failure — may indicate an OPCT validation rule violation (OPCT-001 through OPCT-040) requiring VCSP review |
+
+**Feeding triage results into VCSP review**: When a CI triage identifies `NEW_FAILURE` items, include the Prow job URL, failed test names, and Sippy flake rates in the Jira bug description. The VCSP persona can then cross-reference these against validation rules when reviewing partner archives that exhibit the same failures.
+
+### Jira Project Routing
+
+| Failure type | Jira project | Example |
+|--------------|-------------|---------|
+| OPCT tool bug (CLI, plugins, report UI) | **OPCT** | Report generation crash, plugin timeout |
+| OPCT CI infrastructure failure | **OPCT** | Periodic job lease timeout, test harness error |
+| Upstream OCP platform bug found during OPCT runs | **OCPBUGS** | Kubernetes conformance test failure in core OCP |
+| Certification review finding | **OPCT** | Validation rule violation in partner archive |
+
+**Default for CI triage**: File against **OPCT** (parent OPCT-400). Only route to **OCPBUGS** when the failure is clearly an upstream OpenShift platform issue unrelated to OPCT tooling.
+
+### Bug Filing Policy
+
+All Jira bug creation requires **human approval** before filing — regardless of whether MCP or REST API is available. Agents draft the bug with all fields populated and present it for review. MCP provides the filing mechanism; the user makes the decision.
+
+---
+
 ## Contributing Guidelines
 
 ### Commit Message Format
@@ -1048,18 +1126,33 @@ refactor: replace pkg/errors with stdlib fmt.Errorf
 fix: correct error handling in baseline reporting
 ```
 
-### AI Assistant Footer
+### AI Attribution (Required)
 
-Include the following footer in commits made by AI assistants:
+All AI-generated content must be attributed for traceability.
 
-```
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+**Git commits** — include the co-author trailer:
 
+```text
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
+**GitHub interactions** (PR descriptions, comments, review replies) — append at the end:
+
+```text
+— AI Claude
+```
+
+**Jira comments** (via Claude Code agents or skills) — append at the end:
+
+```text
+— AI Claude
+```
+
+**Chai Bot VCSP persona** — uses its own built-in attribution (automatic Slack thread link appended to Jira comments). Do not add `— AI Claude` to Jira comments created by the VCSP persona; that attribution is handled by Chai Bot.
+
 ### Branch Naming
 
+- Jira-key branches: `OPCT-NNN-<description>` (e.g., `OPCT-419-agentic-assets`)
 - Feature branches: `feature/<description>`
 - Bug fixes: `fix/<description>`
 - Development tasks: `dev/<description>`
@@ -1178,6 +1271,222 @@ Based on v0.6.1 experience:
 
 ---
 
+## Web UI Report Development
+
+**When to use**: Modify the OPCT web report UI (charts, tables, layout, new pages).
+
+### Architecture
+
+The report is a **Vue.js 2 single-page application** rendered as a Go template.
+
+**Key files**:
+- `data/templates/report/report.html` — Main Vue app (Go template delimiters: `[[` / `]]`)
+- `data/templates/report/report.css` — Styles
+- `internal/report/data.go` — Backend: `SaveResults()` renders templates to `<saveTo>/index.html`
+- `internal/openshift/mustgathermetrics/plotly.go` — Generates Plotly-format JSON chart data to `<saveTo>/metrics/`
+
+**CDN libraries loaded in report.html**:
+- Vue 2, Bootstrap, BootstrapVue, axios
+- Chart.js 4.4.9 + chartjs-adapter-date-fns (time-series X axes)
+- Hammer.js + chartjs-plugin-zoom (drag-to-zoom, pan)
+
+**Content rendering pattern**: Each page builds HTML strings in `this.menuBody` and renders via `v-html` directive. Data comes from `opct-report.json` (fetched by axios or embedded via Go template).
+
+### Testing Workflow
+
+```bash
+# 1. Build
+make build
+
+# 2. Generate report (--skip-server to avoid blocking)
+TEST_ID=<result-name>  # e.g., 4.20.0-0.nightly-2026-05-04-230007-20260510-HighlyAvailable-aws-External
+./build/opct-linux-amd64 report -s ~/opct/tmp/${TEST_ID}__report --skip-server ~/opct/results/${TEST_ID}.tar.gz
+
+# 3. Serve for browser testing
+python3 -m http.server 9090 --directory ~/opct/tmp/${TEST_ID}__report
+
+# 4. Open http://localhost:9090 in browser, test all pages
+```
+
+Always test:
+- The page you modified
+- At least 2-3 other pages (Summary, Checks, Network) to verify no layout regressions
+- Browser resize for responsive behavior
+
+### Split-Pane Layout Pattern
+
+Some pages (e.g., etcd) use a split-pane layout with tables on the left and charts on the right.
+
+**Critical rule**: Use `v-if`/`v-else` to conditionally render the split container — **never** use a shared container with conditional CSS classes.
+
+```html
+<!-- CORRECT: split pane only exists when menuBodyRight has content -->
+<div v-if="menuBodyRight" id="split-container" class="d-flex">
+  <div id="panel-left" class="etcd-panel-left overflow-auto">
+    <span v-html="menuBody"></span>
+  </div>
+  <div id="panel-divider" class="etcd-panel-divider"></div>
+  <div id="panel-right" class="etcd-panel-right overflow-auto">
+    <span v-html="menuBodyRight"></span>
+  </div>
+</div>
+<div v-else class="overflow-auto">
+  <span v-html="menuBody"></span>
+</div>
+```
+
+```html
+<!-- WRONG: d-flex affects all pages even when menuBodyRight is empty -->
+<div class="d-flex">
+  <div :class="menuBodyRight ? 'etcd-panel-left' : ''">
+    <span v-html="menuBody"></span>
+  </div>
+</div>
+```
+
+**Why**: The `d-flex` container changes layout behavior for ALL pages. Inline styles set by JavaScript (e.g., drag-resize) persist across page navigations. The `v-if`/`v-else` approach ensures non-split pages use the original full-width layout unchanged.
+
+**Cleanup**: `changeMenuCleanup()` must clear `menuBodyRight` AND reset any inline styles set by the drag-resize handler:
+
+```javascript
+changeMenuCleanup() {
+  this.menuTitle = '';
+  this.menuBody = '';
+  this.menuBodyRight = '';
+  var left = document.getElementById('panel-left');
+  if (left) { left.style.width = ''; left.style.minWidth = ''; }
+  var right = document.getElementById('panel-right');
+  if (right) { right.style.width = ''; right.style.minWidth = ''; }
+},
+```
+
+### Adding Charts to a Page
+
+Chart data is served as static JSON files at `./metrics/` (generated during report processing). To add charts to a page:
+
+1. **Define chart metadata** in Vue `data()`:
+   ```javascript
+   etcdCharts: [
+     { id: "etcd-chart-0", path: "./metrics/query_range-etcd-...", title: "Chart Title" },
+   ],
+   ```
+
+2. **Build canvas placeholders** in `menuBodyRight` (Chart.js uses `<canvas>`, not `<div>`):
+   ```javascript
+   this.menuBodyRight += `<div class="etcd-chart-card"><canvas id="` + chart.id + `"></canvas></div>`
+   ```
+
+3. **Render after DOM update** with `this.$nextTick(() => { this.renderCharts(); })`
+
+4. **Fetch JSON and create Chart.js instances**:
+   ```javascript
+   axios.get(chart.path).then(resp => {
+     let reply = resp.data;
+     // reply.data = [{x: [...], y: [...], name: "label", type: "scatter"}]
+     // Map Plotly format to Chart.js datasets
+     new Chart(canvas, { type: 'line', data: { datasets }, options: { ... } });
+   });
+   ```
+
+**Chart data format** (Plotly JSON, reused by Chart.js):
+- `data[].x` — timestamps as strings (e.g., `"2026-5-9 21:44:8"`, non-padded)
+- `data[].y` — float values
+- `data[].name` — series label
+- Use `parseMetricTimestamp()` for cross-browser safe date parsing
+
+**Available etcd metrics** (defined in `internal/openshift/mustgathermetrics/main.go`):
+- `query_range-etcd-disk-fsync-wal-duration-p99.json.gz`
+- `query_range-etcd-disk-fsync-db-duration-p99.json.gz`
+- `query_range-etcd-peer-round-trip-time.json.gz`
+- `query_range-etcd-total-leader-elections-day.json.gz`
+- `query_range-etcd-request-duration-p99.json.gz`
+- `query_range-api-kas-request-duration-p99.json.gz`
+
+### Common Pitfalls
+
+- **Go template conflict**: Use `[[` / `]]` for Go template delimiters, not `{{` / `}}` (conflicts with Vue)
+- **`v-html` scripts don't execute**: `<script>` tags injected via `v-html` are ignored. Use `$nextTick()` callbacks instead
+- **Chart.js needs `<canvas>`**, not `<div>` (unlike Plotly which uses `<div>`)
+- **Plotly is still used** by `metrics/index.html` (standalone page). Don't remove the Plotly JSON generation in the Go backend
+- **`hasMetricsData` flag**: Gate chart rendering on `this.report.summary.features.hasMetricsData` — it's `false` when must-gather metrics were not collected
+
+### Chatbot (AI Assistant) Architecture
+
+> **Experimental:** The chat widget and `internal/chat/` backend are in development — see [PR #213](https://github.com/redhat-openshift-ecosystem/opct/pull/213). The guidance below applies when that feature is merged or checked out locally.
+
+The report includes a floating chat widget powered by Claude via the Anthropic SDK.
+
+**Backend files** (`internal/chat/`):
+- `handler.go` — HTTP handlers, SSE streaming, Claude API tool-use loop
+- `tools.go` — 8 tool definitions (summary, checks, plugin results, test failure logs, etcd, network) + tool executor reading from report directory
+- `session.go` — Session CRUD with JSON persistence in `<report-dir>/chat-sessions/`
+- `prompt.go` — Built-in system prompt with file override (`<report-dir>/system.prompt.txt`)
+
+**API endpoints** (registered in `pkg/cmd/report/report.go`):
+- `GET /api/v1/chat/status` — Returns `{"enabled": bool, "provider": "vertex"|"anthropic", "model": "..."}`
+- `POST /api/v1/chat` — Send message, stream response via SSE
+- `GET /api/v1/chat/sessions` — List saved sessions
+- `GET /api/v1/chat/sessions/{id}` — Load a session
+- `POST /api/v1/chat/sessions` — Save a session
+
+**Authentication** (auto-detected at startup):
+1. Vertex AI: detected when `GOOGLE_CLOUD_LOCATION` (or `CLOUD_ML_REGION`) and `ANTHROPIC_VERTEX_PROJECT_ID` (or `GOOGLE_CLOUD_PROJECT`) are set
+2. Anthropic API: detected when `ANTHROPIC_API_KEY` is set
+3. Neither set → chat disabled, UI shows setup instructions
+
+**Key design decisions**:
+- Uses **tool use** instead of stuffing the 2MB report JSON into context — Claude calls tools to fetch specific data on demand
+- **SSE streaming** for real-time token display via `fetch()` + `ReadableStream`
+- **AbortController** for the Stop button — cancels the fetch request mid-stream
+- Tool results are read directly from the report directory filesystem
+
+**Vertex AI region priority**: Use `GOOGLE_CLOUD_LOCATION` first, then `CLOUD_ML_REGION`. The `CLOUD_ML_REGION=global` value is NOT a valid Vertex AI Anthropic endpoint — always prefer the specific region.
+
+**Model format**: Use alias form like `claude-sonnet-4-5` (not dated versions like `claude-sonnet-4-5-20250514` which may not be available in all Vertex projects).
+
+### Floating Widget Pattern
+
+The chat uses a floating widget (not a tab) so users can keep navigating all existing tabs while the chat is open.
+
+**Key behaviors**:
+- Chat bubble icon fixed bottom-right, always visible
+- Three header buttons: minimize (`—`), maximize (`□`), close (`×`)
+- Minimize/maximize use CSS classes (`chat-minimized`, `chat-maximized`) with `!important` rules — **never** toggle `display` on individual children via JS (causes partial state bugs)
+- Chat state persists in JS variables across tab navigation
+- Sessions auto-save after each assistant response
+
+**Anti-patterns learned**:
+- ❌ CSS `resize: both` — unreliable across browsers, resize handle is invisible/hard to find
+- ❌ Setting `display` on individual children for minimize — causes blank areas on restore
+- ❌ `direction: rtl` hack for resize handle position — conflicts with content layout
+- ✅ Use CSS classes with `!important` for state changes (minimize/maximize)
+- ✅ Use explicit maximize/restore buttons instead of drag-to-resize for floating panels
+
+### UI Styling Patterns
+
+**Page headline bar**: Cluster info displayed as colored badge pills (not raw text with brackets):
+```javascript
+// Pattern used in pageHeadline computed property
+headline += '<span class="headline-badge headline-ocp">OpenShift <strong>' + version + '</strong></span>'
+```
+- `.headline-ocp` — blue badge for OpenShift version
+- `.headline-k8s` — green badge for Kubernetes version
+- `.headline-platform` — amber badge for platform type
+- `.headline-archive` — gray monospace badge for archive filename on second row
+
+**Table section headers**: Use Bootstrap `<dt>` with `text-light bg-secondary` class:
+```javascript
+this.menuBody += '<dt class="text-light bg-secondary ps-1 mb-1">Section Title</dt>'
+```
+
+**Font sizes**: Chat widget uses fixed pixel sizes (not rem) to avoid inheritance issues:
+- Body text: 12px
+- Headings inside chat: 13px
+- Code/pre: 11px
+- Tables: 11px
+
+---
+
 ## Document Maintenance
 
 This document should be updated when:
@@ -1186,5 +1495,5 @@ This document should be updated when:
 - AI assistants encounter repeated questions or issues
 - Development workflows change significantly
 
-**Last Updated**: 2025-12-08
+**Last Updated**: 2026-05-14
 **Maintainer**: OPCT Development Team
