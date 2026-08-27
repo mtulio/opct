@@ -65,7 +65,9 @@ echo "Static server PID: ${HTTP_PID} (http://127.0.0.1:9090)"
 ```bash
 rm -rf "${REPORT_DIR:?}"
 REPORT_LOG="/tmp/opct-report-${TEST_ID}.log"
-./build/opct-linux-amd64 report -s "${REPORT_DIR}" ~/opct/results/${TEST_ID}.tar.gz \
+./build/opct-linux-amd64 report -s "${REPORT_DIR}" \
+  --server-address 127.0.0.1:9090 \
+  ~/opct/results/${TEST_ID}.tar.gz \
   > "${REPORT_LOG}" 2>&1 &
 REPORT_PID=$!
 echo "Report server PID: ${REPORT_PID} (logs: ${REPORT_LOG}, http://127.0.0.1:9090)"
