@@ -7,9 +7,13 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilwait "k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes/fake"
+	ktesting "k8s.io/client-go/testing"
 
 	"github.com/redhat-openshift-ecosystem/opct/pkg"
 )
@@ -58,8 +62,8 @@ func TestWaitForAggregatorReady_noPodsTimesOut(t *testing.T) {
 	if err == nil {
 		t.Fatal("WaitForAggregatorReady() error = nil, want timeout error")
 	}
-	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, utilwait.ErrWaitTimeout) {
-		t.Fatalf("WaitForAggregatorReady() error = %v, want deadline or wait timeout", err)
+	if !utilwait.Interrupted(err) && !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitForAggregatorReady() error = %v, want interrupted or deadline exceeded", err)
 	}
 }
 
@@ -73,7 +77,22 @@ func TestWaitForAggregatorReady_pendingTimesOut(t *testing.T) {
 	if err == nil {
 		t.Fatal("WaitForAggregatorReady() error = nil, want timeout error")
 	}
-	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, utilwait.ErrWaitTimeout) {
-		t.Fatalf("WaitForAggregatorReady() error = %v, want deadline or wait timeout", err)
+	if !utilwait.Interrupted(err) && !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("WaitForAggregatorReady() error = %v, want interrupted or deadline exceeded", err)
+	}
+}
+
+func TestWaitForAggregatorReady_forbidden(t *testing.T) {
+	kclient := fake.NewSimpleClientset()
+	kclient.PrependReactor("list", "pods", func(action ktesting.Action) (bool, runtime.Object, error) {
+		return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "pods"}, "", errors.New("denied"))
+	})
+
+	err := WaitForAggregatorReady(context.Background(), kclient)
+	if err == nil {
+		t.Fatal("WaitForAggregatorReady() error = nil, want forbidden error")
+	}
+	if !apierrors.IsForbidden(err) {
+		t.Fatalf("WaitForAggregatorReady() error = %v, want forbidden error", err)
 	}
 }
