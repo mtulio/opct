@@ -8,6 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -103,6 +104,9 @@ func WaitForAggregatorReady(parentCtx context.Context, kclient kubernetes.Interf
 			LabelSelector: aggregatorLabelSelector,
 		})
 		if err != nil {
+			if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || apierrors.IsBadRequest(err) {
+				return false, fmt.Errorf("listing sonobuoy aggregator pods: %w", err)
+			}
 			warnIfDue("error listing sonobuoy aggregator pods, retrying", err)
 			return false, nil
 		}
@@ -126,7 +130,7 @@ func WaitForAggregatorReady(parentCtx context.Context, kclient kubernetes.Interf
 		return nil
 	}
 
-	if errors.Is(err, wait.ErrWaitTimeout) || errors.Is(err, context.DeadlineExceeded) {
+	if wait.Interrupted(err) {
 		return fmt.Errorf("timeout waiting for sonobuoy aggregator pod to become ready after %s: %w", aggregatorReadyTimeout, err)
 	}
 	return err
