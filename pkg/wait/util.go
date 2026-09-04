@@ -70,16 +70,28 @@ func WaitForRequiredResources(kclient kubernetes.Interface) error {
 // WaitForAggregatorReady polls until the sonobuoy aggregator pod is Running/Ready.
 // Uses List (no watch/reflector) with exponential backoff for transient API errors.
 func WaitForAggregatorReady(parentCtx context.Context, kclient kubernetes.Interface) error {
-	ctx, cancel := context.WithTimeout(parentCtx, aggregatorReadyTimeout)
-	defer cancel()
-
 	backoff := wait.Backoff{
 		Duration: 2 * time.Second,
 		Factor:   2.0,
 		Cap:      30 * time.Second,
 		Steps:    30,
-		Jitter:   0.1,
 	}
+	return waitForAggregatorReady(parentCtx, kclient, backoff, aggregatorReadyTimeout)
+}
+
+// waitForAggregatorReady drives the polling loop directly instead of using
+// wait.ExponentialBackoffWithContext, which stops and returns ErrWaitTimeout as
+// soon as the first Cap-truncated sleep occurs (i.e. it treats reaching the cap
+// as exhaustion). That would end polling after ~30s here instead of honoring
+// the full timeout. Looping manually and bounding only on ctx.Done() avoids
+// that, while still reusing backoff.Step() for the growing sleep interval.
+//
+// It also distinguishes a canceled/expired parentCtx from the timeout applied
+// here, so callers get the real cancellation reason instead of a misleading
+// "aggregator not ready" timeout error.
+func waitForAggregatorReady(parentCtx context.Context, kclient kubernetes.Interface, backoff wait.Backoff, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(parentCtx, timeout)
+	defer cancel()
 
 	startedAt := time.Now()
 	var lastWarnAt time.Time
@@ -99,41 +111,42 @@ func WaitForAggregatorReady(parentCtx context.Context, kclient kubernetes.Interf
 		log.Warn(msg)
 	}
 
-	err := wait.ExponentialBackoffWithContext(ctx, backoff, func(ctx context.Context) (bool, error) {
+	for {
 		pods, err := kclient.CoreV1().Pods(pkg.CertificationNamespace).List(ctx, metav1.ListOptions{
 			LabelSelector: aggregatorLabelSelector,
 		})
-		if err != nil {
+		switch {
+		case err != nil:
 			if apierrors.IsForbidden(err) || apierrors.IsUnauthorized(err) || apierrors.IsBadRequest(err) {
-				return false, fmt.Errorf("listing sonobuoy aggregator pods: %w", err)
+				return fmt.Errorf("listing sonobuoy aggregator pods: %w", err)
 			}
 			warnIfDue("error listing sonobuoy aggregator pods, retrying", err)
-			return false, nil
-		}
-
-		if len(pods.Items) == 0 {
+		case len(pods.Items) == 0:
 			warnIfDue("sonobuoy aggregator pod not found yet, retrying", nil)
-			return false, nil
-		}
-
-		for i := range pods.Items {
-			pod := &pods.Items[i]
-			if pod.Status.Phase == v1.PodRunning && podIsReady(pod) {
-				return true, nil
+		default:
+			ready := false
+			for i := range pods.Items {
+				pod := &pods.Items[i]
+				if pod.Status.Phase == v1.PodRunning && podIsReady(pod) {
+					ready = true
+					break
+				}
 			}
+			if ready {
+				return nil
+			}
+			warnIfDue("sonobuoy aggregator pod is not ready yet, retrying", nil)
 		}
 
-		warnIfDue("sonobuoy aggregator pod is not ready yet, retrying", nil)
-		return false, nil
-	})
-	if err == nil {
-		return nil
+		select {
+		case <-ctx.Done():
+			if parentCtx.Err() != nil {
+				return fmt.Errorf("waiting for sonobuoy aggregator pod: %w", parentCtx.Err())
+			}
+			return fmt.Errorf("timeout waiting for sonobuoy aggregator pod to become ready after %s: %w", timeout, ctx.Err())
+		case <-time.After(backoff.Step()):
+		}
 	}
-
-	if wait.Interrupted(err) {
-		return fmt.Errorf("timeout waiting for sonobuoy aggregator pod to become ready after %s: %w", aggregatorReadyTimeout, err)
-	}
-	return err
 }
 
 func podIsReady(pod *v1.Pod) bool {
